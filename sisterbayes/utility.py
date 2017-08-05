@@ -425,6 +425,14 @@ def filter_columns_from_file(
         target_writer.writerow(row)
 
 ##############################################################################
+## Time Printing
+
+def format_eta(eta):
+    hours, rem = divmod(eta, 3600)
+    minutes, seconds = divmod(rem, 60)
+    return "{:0>2}:{:0>2}:{:05.2f}".format(int(hours),int(minutes),seconds)
+
+##############################################################################
 ## Logging
 
 _LOGGING_LEVEL_ENVAR = "SISTERBAYES_LOGGING_LEVEL"

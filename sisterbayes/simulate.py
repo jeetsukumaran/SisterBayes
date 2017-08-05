@@ -348,6 +348,7 @@ class SisterBayesSimulator(object):
                 job_size=nreps)
         task_queue.load_tasks()
         # time.sleep(0.1) # to avoid: 'IOError: [Errno 32] Broken pipe'; https://stackoverflow.com/questions/36359528/broken-pipe-error-with-multiprocessing-queue
+        main_time_start = time.time()
         self.run_logger.info("Launching {} worker processes".format(self.num_processes))
         results_queue = multiprocessing.Queue()
         messenger_lock = multiprocessing.Lock()
@@ -406,11 +407,15 @@ class SisterBayesSimulator(object):
                 # self.run_logger.info("Recovered results from worker process '{}'".format(result.worker_name))
                 result_count += 1
                 # self.info_message("Recovered results from {} of {} worker processes".format(result_count, self.num_processes))
+
+                rate = (time.time() - main_time_start) / float(result_count)
+                eta = (nreps - result_count) * rate
                 if result_count and self.logging_frequency and result_count % self.logging_frequency == 0:
-                    self.run_logger.info("Completed replicate {}".format(
+                    self.run_logger.info("Completed replicate {} (ETA for full completion: {})".format(
                         result_count,
-                        len(task_queue),
-                        nreps - result_count,
+                        utility.format_eta(eta),
+                        # len(task_queue),
+                        # nreps - result_count,
                         ))
         except (Exception, KeyboardInterrupt) as e:
             for worker in workers:
