@@ -241,14 +241,14 @@ class SisterBayesSimulator(object):
         config_d = dict(config_d) # make copy so we can pop items
         self.is_verbose_setup = is_verbose_setup
         self.configure_simulator(config_d)
-        self.num_cpus = multiprocessing.cpu_count()
+        self.num_cpus = utility.physical_cpu_count()
         if num_processes is None or num_processes <= 0:
-            self.num_processes = num_cpus
+            self.num_processes = self.num_cpus # problem is hyperthreading results in 2x "real" CPU's :(
         elif num_processes == 1 and self.num_cpus > 1 and self.is_verbose_setup:
             self.run_logger.info(
                     ("Multiple processors ({num_cpus}) available:"
                     " consider using the '-M' or '-m' options to"
-                    " parallelize processing of trees"
+                    " parallelize processing"
                     ).format(num_cpus=self.num_cpus))
             self.num_processes = 1
         else:
@@ -329,6 +329,17 @@ class SisterBayesSimulator(object):
         if config_d:
             raise Exception("Unrecognized configuration entries: {}".format(config_d))
 
+    def get_eta(self, start_time, result_count, nreps):
+        rate = (time.time() - start_time) / float(result_count)
+        eta = (nreps - result_count) * rate
+        return eta
+
+    def formatted_eta(self, start_time, result_count, nreps):
+        return utility.format_elapsed_time(self.get_eta(
+            start_time=start_time,
+            result_count=result_count,
+            nreps=nreps))
+
     def execute(self,
             nreps,
             dest=None,
@@ -404,19 +415,15 @@ class SisterBayesSimulator(object):
                         dest.write("\n")
                     dest.write(self.field_delimiter.join("{}".format(v) for v in result.values()))
                     dest.write("\n")
-                # self.run_logger.info("Recovered results from worker process '{}'".format(result.worker_name))
                 result_count += 1
-                # self.info_message("Recovered results from {} of {} worker processes".format(result_count, self.num_processes))
-
-                rate = (time.time() - main_time_start) / float(result_count)
-                eta = (nreps - result_count) * rate
-                if result_count and self.logging_frequency and result_count % self.logging_frequency == 0:
+                if self.logging_frequency and result_count % self.logging_frequency == 0:
                     self.run_logger.info("Completed replicate {} (remaining job time: {})".format(
                         result_count,
-                        utility.format_elapsed_time(eta),
-                        # len(task_queue),
-                        # nreps - result_count,
+                        self.formatted_eta(start_time=main_time_start, result_count=result_count, nreps=nreps),
                         ))
+                elif result_count == 1:
+                    self.run_logger.info("Preliminary estimate of job time: {}".format(
+                        self.formatted_eta(start_time=main_time_start, result_count=1, nreps=nreps),))
         except (Exception, KeyboardInterrupt) as e:
             for worker in workers:
                 worker.terminate()

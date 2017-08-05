@@ -41,6 +41,18 @@ import logging
 import tempfile
 import re
 
+try:
+    import psutil
+    def physical_cpu_count():
+        return psutil.cpu_count(logical=False)
+except ImportError:
+    import multiprocessing
+    def physical_cpu_count():
+        try:
+            return multiprocessing.cpu_count()
+        except NotImplementedError:
+            return 1
+
 ##############################################################################
 ## StringIO
 try:
