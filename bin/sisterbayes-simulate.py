@@ -171,7 +171,7 @@ def main():
                 is_verbose_setup=True,
                 package_id=package_id,
                 )
-        filepath = config_d["output_prefix"] + ".sumstats.tsv"
+        filepath = config_d["output_prefix"] + ".tsv"
         dest = utility.universal_open(filepath, "a" if args.append else "w")
         # dest = utility.open_destput_file_for_csv_writer(
         #         filepath=filepath,
