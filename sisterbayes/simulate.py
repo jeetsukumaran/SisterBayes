@@ -287,10 +287,14 @@ class SisterBayesSimulator(object):
             is_write_header=True,
             ):
         # load up queue
-        self.run_logger.info("Creating work queue")
+        self.run_logger.info("Priming work queue")
         work_queue = multiprocessing.Queue()
-        for rep_idx in range(nreps):
-            work_queue.put( rep_idx )
+        task_count = 0
+        for idx in range(min(self.num_processes, nreps)):
+            work_queue.put(task_count)
+            task_count += 1
+        # for rep_idx in range(nreps):
+        #     work_queue.put( rep_idx )
         time.sleep(0.1) # to avoid: 'IOError: [Errno 32] Broken pipe'; https://stackoverflow.com/questions/36359528/broken-pipe-error-with-multiprocessing-queue
         self.run_logger.info("Launching {} worker processes".format(self.num_processes))
         results_queue = multiprocessing.Queue()
@@ -325,7 +329,12 @@ class SisterBayesSimulator(object):
         result_count = 0
         try:
             while result_count < nreps:
-                result = results_queue.get()
+                try:
+                    result = results_queue.get_nowait()
+                except queue.Empty:
+                    continue
+                work_queue.put(task_count)
+                task_count += 1
                 if isinstance(result, KeyboardInterrupt):
                     raise result
                 elif isinstance(result, Exception):
