@@ -422,7 +422,7 @@ class SisterBayesSimulator(object):
                 worker.terminate()
             raise
         self.run_logger.info("All {} worker processes terminated".format(self.num_processes))
-        self.run_logger.info("Job completed: {} replicates simulated in {}".format(
+        self.run_logger.info("Job done: {} replicates completed in {}".format(
             nreps,
             utility.format_elapsed_time(time.time() - main_time_start)))
         return results_store
