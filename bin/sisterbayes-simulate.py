@@ -128,6 +128,8 @@ def main():
     args = parser.parse_args()
 
     config_d = {}
+    if not os.path.exists(args.configuration_filepath):
+        sys.exit("ERROR: Configuration file '{}' not found.".format(args.configuration_filepath))
     utility.parse_legacy_configuration(
             filepath=args.configuration_filepath,
             config_d=config_d)
@@ -142,6 +144,10 @@ def main():
     else:
         config_d["logging_frequency"] = args.log_frequency
     config_d["fsc2_path"] = args.fsc2_path
+    if utility.which(config_d["fsc2_path"]) is None:
+        sys.exit("ERROR: FastSimCoal2 executable '{}' not found.\n"
+                    "Install FastSimCoal2 and specify path to the executable\n"
+                    "using the '--fsc2-path' argument.".format(config_d["fsc2_path"]))
     config_d["file_logging_level"] = args.file_logging_level
     config_d["standard_error_logging_level"] = args.stderr_logging_level
     # config_d["log_to_file"] = args.log_to_file
