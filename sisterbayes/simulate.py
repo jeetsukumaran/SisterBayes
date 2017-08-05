@@ -333,8 +333,9 @@ class SisterBayesSimulator(object):
                     result = results_queue.get_nowait()
                 except queue.Empty:
                     continue
-                work_queue.put(task_count)
-                task_count += 1
+                if task_count < nreps:
+                    work_queue.put(task_count)
+                    task_count += 1
                 if isinstance(result, KeyboardInterrupt):
                     raise result
                 elif isinstance(result, Exception):
