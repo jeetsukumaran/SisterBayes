@@ -411,9 +411,9 @@ class SisterBayesSimulator(object):
                 rate = (time.time() - main_time_start) / float(result_count)
                 eta = (nreps - result_count) * rate
                 if result_count and self.logging_frequency and result_count % self.logging_frequency == 0:
-                    self.run_logger.info("Completed replicate {} (ETA for full completion: {})".format(
+                    self.run_logger.info("Completed replicate {} (remaining job time: {})".format(
                         result_count,
-                        utility.format_eta(eta),
+                        utility.format_elapsed_time(eta),
                         # len(task_queue),
                         # nreps - result_count,
                         ))
@@ -422,5 +422,8 @@ class SisterBayesSimulator(object):
                 worker.terminate()
             raise
         self.run_logger.info("All {} worker processes terminated".format(self.num_processes))
+        self.run_logger.info("Job completed: {} replicates simulated in {}".format(
+            nreps,
+            utility.format_elapsed_time(time.time() - main_time_start)))
         return results_store
 
