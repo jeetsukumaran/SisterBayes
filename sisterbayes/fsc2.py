@@ -178,12 +178,18 @@ class Fsc2Handler(object):
             results_d):
         with utility.universal_open(filepath) as src:
             lines = src.read().split("\n")
-            col_keys = lines[1].split("\t")[1:]
+            col_keys = [c for c in lines[1].split("\t")[1:] if "sites with multiple" not in c]
             row_idx = 0
             for line in lines[2:]:
                 if not line:
                     continue
                 cols = line.split("\t")
+                if len(cols) - 1 != len(col_keys):
+                    raise ValueError("Row {}: Expecting {} columns, but found {}: {}".format(
+                        row_idx + 1,
+                        len(col_keys),
+                        len(cols) - 1,
+                        cols))
                 assert len(cols) - 1 == len(col_keys)
                 row_key = cols[0]
                 col_idx = 0
