@@ -150,10 +150,6 @@ class SimulationWorker(multiprocessing.Process):
             self.results_queue.put(result)
             self.num_tasks_completed += 1
             # self.send_info("Completed task {_num_assigned_tasks}: '{task_name}'".format(
-            if rep_idx and self.logging_frequency and rep_idx % self.logging_frequency == 0:
-                self.run_logger.info("Completed replicate {task_name}".format(
-                    _num_assigned_tasks=self.num_tasks_received,
-                    task_name=rep_idx))
         if self.kill_received:
             self.send_worker_warning("Terminating in response to kill request")
 
@@ -180,6 +176,53 @@ class SimulationWorker(multiprocessing.Process):
         if self.is_include_model_id_field:
             results_d["model.id"] = results_d["param.divTimeModel"]
         return results_d
+
+class TaskQueue(object):
+    # If we have a large number of replicates, just pre-loading them on the
+    # queue seems to stall. We could just load them one-by-one as each
+    # worker completes, but as the master cycle also does other processing
+    # of results as each worker completes this leaves open the
+    # possibilities that the task queue will be empty waiting for the
+    # master cycle to complete its results processing before loading the
+    # task queue, which means also the possibilty of processes waiting idly
+    # until they get assigned a tasks. Not very probable for any moderately
+    # complex tasks, but still ...
+    # Here we implement a subclass of Queue that allows for loading
+    # of tasks in bite-sized chunks, that also supports some
+    # housekeeping/tracking.
+
+    def __init__(self, num_processes, job_size):
+        self.num_processes = num_processes
+        self.job_size = job_size
+        self._num_assigned_tasks = 0
+        self._num_completed_tasks = 0
+        self._task_load_chunk = self.num_processes * 10
+        self._tasks = multiprocessing.Queue()
+        self.max_active_tasks = self.num_processes * 10
+
+    def load_tasks(self):
+        if self.job_size - (self._num_assigned_tasks + self._task_load_chunk) < 0:
+            num_to_load = self.job_size - self._num_assigned_tasks
+        else:
+            num_to_load = min(self.max_active_tasks - len(self), self._task_load_chunk)
+        for idx in range(num_to_load):
+            self._tasks.put(self._num_assigned_tasks)
+            self._num_assigned_tasks += 1
+        if self._num_assigned_tasks >= self.job_size:
+            for idx in range(self.num_processes):
+                self._tasks.put(None) # poison pill
+
+    def task_done(self):
+        self._num_completed_tasks += 1
+
+    def get(self, *args, **kwargs):
+        return self._tasks.get(*args, **kwargs)
+
+    def get_nowait(self, *args, **kwargs):
+        return self._tasks.get_nowait(*args, **kwargs)
+
+    def __len__(self):
+        return self._num_assigned_tasks - self._num_completed_tasks
 
 class SisterBayesSimulator(object):
 
@@ -286,26 +329,6 @@ class SisterBayesSimulator(object):
         if config_d:
             raise Exception("Unrecognized configuration entries: {}".format(config_d))
 
-    def reset_tasks(self):
-        self._task_queue = multiprocessing.Queue()
-        self._num_assigned_tasks = 0
-        self._task_load_chunk = self.num_processes * 10
-
-    def load_tasks(self, max_tasks):
-        if self._task_queue is None:
-            self.reset_tasks()
-        remaining = max_tasks - (self._num_assigned_tasks + self._task_load_chunk)
-        if remaining < 0:
-            num_to_load = max_tasks - self._num_assigned_tasks
-        else:
-            num_to_load = self._task_load_chunk
-        for idx in range(num_to_load):
-            self._task_queue.put(self._num_assigned_tasks)
-            self._num_assigned_tasks += 1
-        if self._num_assigned_tasks >= max_tasks:
-            for idx in range(self.num_processes):
-                self._task_queue.put(None) # poison pill
-
     def execute(self,
             nreps,
             dest=None,
@@ -314,13 +337,17 @@ class SisterBayesSimulator(object):
             ):
         # load up queue
         self.run_logger.info("Priming task queue")
-        ### does not work very well (stalls) with large
-        ### number of tasks (e.g., > 100K)
+        # Does not work very well (stalls) with large
+        # number of tasks (e.g., > 100K)
         # for rep_idx in range(nreps):
         #     _task_queue.put( rep_idx )
-        self.reset_tasks()
-        self.load_tasks(max_tasks=nreps)
-        time.sleep(0.1) # to avoid: 'IOError: [Errno 32] Broken pipe'; https://stackoverflow.com/questions/36359528/broken-pipe-error-with-multiprocessing-queue
+        # So we use our own task queue class, which abstracts out
+        # the job of chunking tasks
+        task_queue = TaskQueue(
+                num_processes=self.num_processes,
+                job_size=nreps)
+        task_queue.load_tasks()
+        # time.sleep(0.1) # to avoid: 'IOError: [Errno 32] Broken pipe'; https://stackoverflow.com/questions/36359528/broken-pipe-error-with-multiprocessing-queue
         self.run_logger.info("Launching {} worker processes".format(self.num_processes))
         results_queue = multiprocessing.Queue()
         messenger_lock = multiprocessing.Lock()
@@ -330,7 +357,7 @@ class SisterBayesSimulator(object):
                     # name=str(pidx+1),
                     name="{}-{}".format(self.title, pidx+1),
                     model=self.model,
-                    task_queue=self._task_queue,
+                    task_queue=task_queue,
                     results_queue=results_queue,
                     fsc2_path=self.fsc2_path,
                     working_directory=self.working_directory,
@@ -358,7 +385,8 @@ class SisterBayesSimulator(object):
                     result = results_queue.get_nowait()
                 except queue.Empty:
                     continue
-                self.load_tasks(max_tasks=nreps)
+                task_queue.task_done()
+                task_queue.load_tasks() # add another chunk of tasks
                 if isinstance(result, KeyboardInterrupt):
                     raise result
                 elif isinstance(result, Exception):
@@ -378,6 +406,12 @@ class SisterBayesSimulator(object):
                 # self.run_logger.info("Recovered results from worker process '{}'".format(result.worker_name))
                 result_count += 1
                 # self.info_message("Recovered results from {} of {} worker processes".format(result_count, self.num_processes))
+                if result_count and self.logging_frequency and result_count % self.logging_frequency == 0:
+                    self.run_logger.info("Completed replicate {}".format(
+                        result_count,
+                        len(task_queue),
+                        nreps - result_count,
+                        ))
         except (Exception, KeyboardInterrupt) as e:
             for worker in workers:
                 worker.terminate()
