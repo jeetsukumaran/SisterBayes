@@ -53,7 +53,7 @@ class SimulationWorker(multiprocessing.Process):
     def __init__(self,
             name,
             model,
-            work_queue,
+            task_queue,
             results_queue,
             fsc2_path,
             working_directory,
@@ -81,7 +81,7 @@ class SimulationWorker(multiprocessing.Process):
                 is_infinite_sites_model=is_infinite_sites_model)
         self.model = model
         self.rng = random.Random(random_seed)
-        self.work_queue = work_queue
+        self.task_queue = task_queue
         self.results_queue = results_queue
         self.run_logger = run_logger
         self.logging_frequency = logging_frequency
@@ -126,12 +126,15 @@ class SimulationWorker(multiprocessing.Process):
         result = None
         while not self.kill_received:
             try:
-                rep_idx = self.work_queue.get_nowait()
+                rep_idx = self.task_queue.get_nowait()
             except queue.Empty:
+                break
+            if rep_idx is None:
+                # poison pill
                 break
             self.num_tasks_received += 1
             # self.send_worker_critical("Received task: '{task_name}'".format(
-            #     task_count=self.num_tasks_received,
+            #     _num_assigned_tasks=self.num_tasks_received,
             #     task_name=rep_idx))
             # rng = random.Random(random_seed)
             try:
@@ -146,10 +149,10 @@ class SimulationWorker(multiprocessing.Process):
                 break
             self.results_queue.put(result)
             self.num_tasks_completed += 1
-            # self.send_info("Completed task {task_count}: '{task_name}'".format(
+            # self.send_info("Completed task {_num_assigned_tasks}: '{task_name}'".format(
             if rep_idx and self.logging_frequency and rep_idx % self.logging_frequency == 0:
                 self.run_logger.info("Completed replicate {task_name}".format(
-                    task_count=self.num_tasks_received,
+                    _num_assigned_tasks=self.num_tasks_received,
                     task_name=rep_idx))
         if self.kill_received:
             self.send_worker_warning("Terminating in response to kill request")
@@ -217,6 +220,9 @@ class SisterBayesSimulator(object):
                         ", ".join("{}/{}".format(locus.num_genes_deme0, locus.num_genes_deme1) for locus in lineage_pair.locus_definitions),
                         ))
         self.worker_class = SimulationWorker
+        self._task_queue = None
+        self._num_assigned_tasks = None
+        self._task_load_chunk = None
 
     def configure_simulator(self, config_d, verbose=True):
         self.title = config_d.pop("title", "sisterbayes-{}-{}".format(time.strftime("%Y%m%d%H%M%S"), id(self)))
@@ -280,6 +286,26 @@ class SisterBayesSimulator(object):
         if config_d:
             raise Exception("Unrecognized configuration entries: {}".format(config_d))
 
+    def reset_tasks(self):
+        self._task_queue = multiprocessing.Queue()
+        self._num_assigned_tasks = 0
+        self._task_load_chunk = self.num_processes * 10
+
+    def load_tasks(self, max_tasks):
+        if self._task_queue is None:
+            self.reset_tasks()
+        remaining = max_tasks - (self._num_assigned_tasks + self._task_load_chunk)
+        if remaining < 0:
+            num_to_load = max_tasks - self._num_assigned_tasks
+        else:
+            num_to_load = self._task_load_chunk
+        for idx in range(num_to_load):
+            self._task_queue.put(self._num_assigned_tasks)
+            self._num_assigned_tasks += 1
+        if self._num_assigned_tasks >= max_tasks:
+            for idx in range(self.num_processes):
+                self._task_queue.put(None) # poison pill
+
     def execute(self,
             nreps,
             dest=None,
@@ -287,14 +313,13 @@ class SisterBayesSimulator(object):
             is_write_header=True,
             ):
         # load up queue
-        self.run_logger.info("Priming work queue")
-        work_queue = multiprocessing.Queue()
-        task_count = 0
-        for idx in range(min(self.num_processes, nreps)):
-            work_queue.put(task_count)
-            task_count += 1
+        self.run_logger.info("Priming task queue")
+        ### does not work very well (stalls) with large
+        ### number of tasks (e.g., > 100K)
         # for rep_idx in range(nreps):
-        #     work_queue.put( rep_idx )
+        #     _task_queue.put( rep_idx )
+        self.reset_tasks()
+        self.load_tasks(max_tasks=nreps)
         time.sleep(0.1) # to avoid: 'IOError: [Errno 32] Broken pipe'; https://stackoverflow.com/questions/36359528/broken-pipe-error-with-multiprocessing-queue
         self.run_logger.info("Launching {} worker processes".format(self.num_processes))
         results_queue = multiprocessing.Queue()
@@ -305,7 +330,7 @@ class SisterBayesSimulator(object):
                     # name=str(pidx+1),
                     name="{}-{}".format(self.title, pidx+1),
                     model=self.model,
-                    work_queue=work_queue,
+                    task_queue=self._task_queue,
                     results_queue=results_queue,
                     fsc2_path=self.fsc2_path,
                     working_directory=self.working_directory,
@@ -333,9 +358,7 @@ class SisterBayesSimulator(object):
                     result = results_queue.get_nowait()
                 except queue.Empty:
                     continue
-                if task_count < nreps:
-                    work_queue.put(task_count)
-                    task_count += 1
+                self.load_tasks(max_tasks=nreps)
                 if isinstance(result, KeyboardInterrupt):
                     raise result
                 elif isinstance(result, Exception):
@@ -352,12 +375,6 @@ class SisterBayesSimulator(object):
                         dest.write("\n")
                     dest.write(self.field_delimiter.join("{}".format(v) for v in result.values()))
                     dest.write("\n")
-
-                    # if result_count == 0 and is_write_header:
-                    #     results_csv_writer.fieldnames = result.keys()
-                    #     results_csv_writer.writeheader()
-                    # results_csv_writer.writerow(result)
-
                 # self.run_logger.info("Recovered results from worker process '{}'".format(result.worker_name))
                 result_count += 1
                 # self.info_message("Recovered results from {} of {} worker processes".format(result_count, self.num_processes))
