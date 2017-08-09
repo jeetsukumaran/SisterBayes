@@ -41,20 +41,27 @@ import logging
 import tempfile
 import re
 
+##############################################################################
+## CPU counts
+
+def cpu_count():
+    import multiprocessing
+    try:
+        return multiprocessing.cpu_count()
+    except NotImplementedError:
+        return 1
+
 try:
     import psutil
     def physical_cpu_count():
         return psutil.cpu_count(logical=False)
 except ImportError:
-    import multiprocessing
     def physical_cpu_count():
-        try:
-            return multiprocessing.cpu_count()
-        except NotImplementedError:
-            return 1
+        return cpu_count()
 
 ##############################################################################
 ## StringIO
+
 try:
     from StringIO import StringIO # Python 2 legacy support: StringIO in this module is the one needed (not io)
 except ImportError:

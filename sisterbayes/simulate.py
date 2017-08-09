@@ -201,10 +201,13 @@ class TaskQueue(object):
         self.max_active_tasks = self.num_processes * 10
 
     def load_tasks(self):
+        current_load = len(self)
+        if current_load > self.max_active_tasks:
+            return
         if self.job_size - (self._num_assigned_tasks + self._task_load_chunk) < 0:
             num_to_load = self.job_size - self._num_assigned_tasks
         else:
-            num_to_load = min(self.max_active_tasks - len(self), self._task_load_chunk)
+            num_to_load = min(self.max_active_tasks - current_load, self._task_load_chunk)
         for idx in range(num_to_load):
             self._tasks.put(self._num_assigned_tasks)
             self._num_assigned_tasks += 1
@@ -241,7 +244,7 @@ class SisterBayesSimulator(object):
         config_d = dict(config_d) # make copy so we can pop items
         self.is_verbose_setup = is_verbose_setup
         self.configure_simulator(config_d)
-        self.num_cpus = utility.physical_cpu_count()
+        self.num_cpus = utility.cpu_count()
         if num_processes is None or num_processes <= 0:
             self.num_processes = self.num_cpus # problem is hyperthreading results in 2x "real" CPU's :(
         elif num_processes == 1 and self.num_cpus > 1 and self.is_verbose_setup:
@@ -286,9 +289,10 @@ class SisterBayesSimulator(object):
         if self.is_verbose_setup:
             self.run_logger.info("Running: {}".format(self.package_id))
             self.run_logger.info("Configuring simulation: '{}'".format(self.title))
+            self.run_logger.info("Current directory: '{}'".format(os.path.abspath(os.curdir)))
+            self.run_logger.info("Working directory: '{}'".format(self.working_directory))
             self.run_logger.info("Output directory: '{}'".format(os.path.dirname(os.path.abspath(self.output_prefix))))
             self.run_logger.info("Output filename prefix: '{}'".format(os.path.basename(self.output_prefix)))
-            self.run_logger.info("Working directory: '{}'".format(self.working_directory))
         self.fsc2_path = config_d.pop("fsc2_path", "fsc25")
         if self.is_verbose_setup:
             self.run_logger.info("FastSimCoal2 path: '{}'".format(self.fsc2_path))
@@ -331,8 +335,11 @@ class SisterBayesSimulator(object):
 
     def get_eta(self, start_time, result_count, nreps):
         rate = (time.time() - start_time) / float(result_count)
-        eta = (nreps - result_count) * rate
-        return eta
+        return (nreps - result_count) * rate
+        # if result_count < self.num_processes:
+        #     return (nreps/float(self.num_processes)) * rate
+        # else:
+        #     return (nreps - result_count) * rate
 
     def formatted_eta(self, start_time, result_count, nreps):
         return utility.format_elapsed_time(self.get_eta(
@@ -359,11 +366,11 @@ class SisterBayesSimulator(object):
                 job_size=nreps)
         task_queue.load_tasks()
         # time.sleep(0.1) # to avoid: 'IOError: [Errno 32] Broken pipe'; https://stackoverflow.com/questions/36359528/broken-pipe-error-with-multiprocessing-queue
-        main_time_start = time.time()
         self.run_logger.info("Launching {} worker processes".format(self.num_processes))
         results_queue = multiprocessing.Queue()
         messenger_lock = multiprocessing.Lock()
         workers = []
+        main_time_start = time.time()
         for pidx in range(self.num_processes):
             worker = self.worker_class(
                     # name=str(pidx+1),
@@ -397,8 +404,6 @@ class SisterBayesSimulator(object):
                     result = results_queue.get_nowait()
                 except queue.Empty:
                     continue
-                task_queue.task_done()
-                task_queue.load_tasks() # add another chunk of tasks
                 if isinstance(result, KeyboardInterrupt):
                     raise result
                 elif isinstance(result, Exception):
@@ -407,6 +412,8 @@ class SisterBayesSimulator(object):
                                               result.worker_name,
                                               result.traceback_exc))
                     raise result
+                task_queue.task_done()
+                task_queue.load_tasks() # add another chunk of tasks
                 if results_store is not None:
                     results_store.append(result)
                 if dest is not None:
@@ -421,9 +428,9 @@ class SisterBayesSimulator(object):
                         result_count,
                         self.formatted_eta(start_time=main_time_start, result_count=result_count, nreps=nreps),
                         ))
-                elif result_count == 1:
+                elif result_count == self.num_processes and (self.logging_frequency is not None and self.num_processes < self.logging_frequency):
                     self.run_logger.info("Preliminary estimate of job time: {}".format(
-                        self.formatted_eta(start_time=main_time_start, result_count=1, nreps=nreps),))
+                        self.formatted_eta(start_time=main_time_start, result_count=result_count, nreps=nreps),))
         except (Exception, KeyboardInterrupt) as e:
             for worker in workers:
                 worker.terminate()
