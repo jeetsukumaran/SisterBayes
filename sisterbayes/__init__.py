@@ -53,20 +53,23 @@ __copyright__ = "Copyright 2017 Jeet Sukumaran"
 # Modified from: NumPy
 def git_revision_sha1():
     try:
-        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).strip().decode("ascii")
+        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.PIPE,).strip().decode("ascii")
     except:
         return None
 
 def git_revision_date():
     try:
-        return subprocess.check_output('git log -1 --pretty=format:%ci'.split()).strip().decode("ascii")
+        return subprocess.check_output('git log -1 --pretty=format:%ci'.split(), stderr=subprocess.PIPE,).strip().decode("ascii")
     except:
         return None
 
 def revision_description():
     cwd = os.path.dirname(os.path.abspath(__file__))
     try:
-        desc = subprocess.check_output(["git", "log", "-1", "--pretty=format:%h, %ci"], cwd=cwd).strip().decode("ascii")[:-6]
+        desc = subprocess.check_output(
+                ["git", "log", "-1", "--pretty=format:%h, %ci"],
+                stderr=subprocess.PIPE,
+                cwd=cwd).strip().decode("ascii")[:-6]
     except:
         return ""
     if desc:
