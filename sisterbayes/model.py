@@ -394,6 +394,7 @@ class SisterBayesModel(object):
         div_time_model_desc = [None for i in range(self.num_lineage_pairs)]
 
         expected_lineage_pair_idxs = set([i for i in range(self.num_lineage_pairs)])
+        lineage_pair_div_times = {}
         # groups sorted by earliest occurring lineage pair index, to retain consistent div time coding
         for group_id, group in enumerate(sorted(groups, key=lambda group: min(lineage_pair_idx for lineage_pair_idx in group))):
             for lineage_pair_idx in group:
@@ -403,71 +404,76 @@ class SisterBayesModel(object):
                 ## divergence time
                 div_time_model_desc[lineage_pair_idx] = str(group_id+1) # divergence time model description
                 div_time = div_time_values[group_id]
-                params["param.divTime.{}".format(lineage_pair.label)] = div_time
+                lineage_pair_div_times[lineage_pair] = div_time
+        del group_id
+        del group
+        del div_time
+        for lineage_pair in self.lineage_pairs:
+            div_time = lineage_pair_div_times[lineage_pair]
+            params["param.divTime.{}".format(lineage_pair.label)] = div_time
+            ## population parameters --- theta parameterization
+            if self.fixed_thetas and self.fixed_thetas[0] > 0:
+                deme0_theta = self.fixed_thetas[0]
+            else:
+                deme0_theta = rng.gammavariate(*self.prior_theta)
+            if self.fixed_thetas and self.fixed_thetas[1] > 0:
+                deme1_theta = self.fixed_thetas[1]
+            elif self.theta_constraints[1] == self.theta_constraints[0]:
+                deme1_theta = deme0_theta
+            else:
+                deme1_theta = rng.gammavariate(*self.prior_theta)
+            if self.fixed_thetas and self.fixed_thetas[2] > 0:
+                deme2_theta = self.fixed_thetas[2]
+            elif self.theta_constraints[2] == self.theta_constraints[0]:
+                deme2_theta = deme0_theta
+            elif self.theta_constraints[2] == self.theta_constraints[1]:
+                deme2_theta = deme1_theta
+            elif self.prior_ancestral_theta[0] != 0 and self.prior_ancestral_theta[1] != 0:
+                deme2_theta = rng.gammavariate(*self.prior_ancestral_theta)
+            else:
+                deme2_theta = rng.gammavariate(*self.prior_theta)
+            params["param.theta.{}.{}".format(lineage_pair.label, _DEME0_LABEL)] = deme0_theta
+            params["param.theta.{}.{}".format(lineage_pair.label, _DEME1_LABEL)] = deme1_theta
+            params["param.theta.{}.{}".format(lineage_pair.label, _ANCESTOR_DEME_LABEL)] = deme2_theta
 
-                ## population parameters --- theta parameterization
-                if self.fixed_thetas and self.fixed_thetas[0] > 0:
-                    deme0_theta = self.fixed_thetas[0]
-                else:
-                    deme0_theta = rng.gammavariate(*self.prior_theta)
-                if self.fixed_thetas and self.fixed_thetas[1] > 0:
-                    deme1_theta = self.fixed_thetas[1]
-                elif self.theta_constraints[1] == self.theta_constraints[0]:
-                    deme1_theta = deme0_theta
-                else:
-                    deme1_theta = rng.gammavariate(*self.prior_theta)
-                if self.fixed_thetas and self.fixed_thetas[2] > 0:
-                    deme2_theta = self.fixed_thetas[2]
-                elif self.theta_constraints[2] == self.theta_constraints[0]:
-                    deme2_theta = deme0_theta
-                elif self.theta_constraints[2] == self.theta_constraints[1]:
-                    deme2_theta = deme1_theta
-                elif self.prior_ancestral_theta[0] != 0 and self.prior_ancestral_theta[1] != 0:
-                    deme2_theta = rng.gammavariate(*self.prior_ancestral_theta)
-                else:
-                    deme2_theta = rng.gammavariate(*self.prior_theta)
-                params["param.theta.{}.{}".format(lineage_pair.label, _DEME0_LABEL)] = deme0_theta
-                params["param.theta.{}.{}".format(lineage_pair.label, _DEME1_LABEL)] = deme1_theta
-                params["param.theta.{}.{}".format(lineage_pair.label, _ANCESTOR_DEME_LABEL)] = deme2_theta
-
-                for locus_id, locus_definition in enumerate(lineage_pair.locus_definitions):
-                    # Fastsimecoal2 separates pop size and mutation rate, but
-                    # the msBayes/PyMsBayes model does not separate the two,
-                    # using theta.
-                    #
-                    # We could just reparameterize the PyMsBayes model here,
-                    # sampling over N and mu independently. But say we want to
-                    # stick to the theta parameterization.
-                    #
-                    # We could simply scale everything by mutation rate --
-                    # i.e., population size and div time specified in units of
-                    # N * mu, and in the sequence generation assume a base
-                    # mutation rate of 1.0. Problem with this is that
-                    # Fastsimcoal coerces the population size to an integer,
-                    # and so anything less than 1 becomes zero. So we multiply
-                    # the population size time by a large number and adjust
-                    # this in the actual mutation rate so N mu remains the
-                    # same:
-                    #
-                    #   theta = 4 N mu = 4 * (N * C) * (mu/C)
-                    #
-                    # Of course, VERY important to also apply the adjustment
-                    # factor to the divergence time, or, indeed, any other time
-                    # variable!
-                    adjustment_hack = 1E8
-                    #
-                    fsc2_config_d = {
-                        "d0_population_size": deme0_theta/4.0 * locus_definition.ploidy_factor * adjustment_hack,
-                        "d1_population_size": deme1_theta/4.0 * locus_definition.ploidy_factor * adjustment_hack,
-                        "d0_sample_size": locus_definition.num_genes_deme0,
-                        "d1_sample_size": locus_definition.num_genes_deme1,
-                        "div_time": div_time * adjustment_hack, # ditto
-                        "num_sites": locus_definition.num_sites,
-                        "recombination_rate": 0,
-                        "mutation_rate": locus_definition.mutation_rate_factor / adjustment_hack,
-                        "ti_proportional_bias": (1.0 * locus_definition.ti_tv_rate_ratio)/3.0,
-                        }
-                    fsc2_run_configurations[locus_definition] = fsc2_config_d
+            for locus_id, locus_definition in enumerate(lineage_pair.locus_definitions):
+                # Fastsimecoal2 separates pop size and mutation rate, but
+                # the msBayes/PyMsBayes model does not separate the two,
+                # using theta.
+                #
+                # We could just reparameterize the PyMsBayes model here,
+                # sampling over N and mu independently. But say we want to
+                # stick to the theta parameterization.
+                #
+                # We could simply scale everything by mutation rate --
+                # i.e., population size and div time specified in units of
+                # N * mu, and in the sequence generation assume a base
+                # mutation rate of 1.0. Problem with this is that
+                # Fastsimcoal coerces the population size to an integer,
+                # and so anything less than 1 becomes zero. So we multiply
+                # the population size time by a large number and adjust
+                # this in the actual mutation rate so N mu remains the
+                # same:
+                #
+                #   theta = 4 N mu = 4 * (N * C) * (mu/C)
+                #
+                # Of course, VERY important to also apply the adjustment
+                # factor to the divergence time, or, indeed, any other time
+                # variable!
+                adjustment_hack = 1E8
+                #
+                fsc2_config_d = {
+                    "d0_population_size": deme0_theta/4.0 * locus_definition.ploidy_factor * adjustment_hack,
+                    "d1_population_size": deme1_theta/4.0 * locus_definition.ploidy_factor * adjustment_hack,
+                    "d0_sample_size": locus_definition.num_genes_deme0,
+                    "d1_sample_size": locus_definition.num_genes_deme1,
+                    "div_time": div_time * adjustment_hack, # ditto
+                    "num_sites": locus_definition.num_sites,
+                    "recombination_rate": 0,
+                    "mutation_rate": locus_definition.mutation_rate_factor / adjustment_hack,
+                    "ti_proportional_bias": (1.0 * locus_definition.ti_tv_rate_ratio)/3.0,
+                    }
+                fsc2_run_configurations[locus_definition] = fsc2_config_d
         params["param.divTimeModel"] = "M{}".format("".join(div_time_model_desc))
         return params, fsc2_run_configurations
 
