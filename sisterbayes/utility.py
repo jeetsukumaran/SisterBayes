@@ -131,17 +131,23 @@ def get_csv_writer(
             )
     return writer
 
-def write_dict_csv(list_of_dicts, filepath, fieldnames=None, is_no_header_row=False, is_append=False):
-    dest = open_destput_file_for_csv_writer(
-            filepath=filepath,
-            is_append=is_append)
+def write_dict_csv(
+        dest,
+        list_of_dicts,
+        fieldnames=None,
+        delimiter="\t",
+        is_no_header_row=False,
+        is_append=False):
+    if isinstance(dest, str):
+        dest = open_destput_file_for_csv_writer(
+                filepath=filepath,
+                is_append=is_append)
     if fieldnames is None:
         fieldnames = list_of_dicts[0].keys()
     with dest:
         writer = get_csv_writer(
                 dest=dest,
-                delimiter=",",
-                lineterminator=os.linesep,
+                delimiter=delimiter,
                 )
         writer.fieldnames = fieldnames
         if not is_no_header_row:
