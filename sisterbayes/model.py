@@ -287,6 +287,17 @@ class SisterBayesModel(object):
         # bottleneck magnitude; the bottleneck magnitude still varies among the
         # pairs).
         self.bottle_proportion_shared = bool(int(params_d.pop("bottleProportionShared")))
+        # Fixed the divergence time model.
+        self.fixed_divergence_time_model = params_d.pop("fixedDivTimeModel", None)
+        if self.fixed_divergence_time_model is not None:
+            original_fdtm = self.fixed_divergence_time_model
+            if self.fixed_divergence_time_model.upper().startswith("M"):
+                self.fixed_divergence_time_model = self.fixed_divergence_time_model[1:]
+            if len(self.fixed_divergence_time_model) != self.num_lineage_pairs:
+                raise ValueError("Expecting {} elements in divergence time model description, but only found {}: '{}'".format(
+                    self.num_lineage_pairs,
+                    len(self.fixed_divergence_time_model),
+                    original_fdtm))
         # If this setting is zero (the default), the number of divergence
         # events is free to vary according to the Dirichlet process prior on
         # divergence models. If it is greater than zero, then the model is
@@ -294,6 +305,11 @@ class SisterBayesModel(object):
         # simulation-based power analyses, but should not be used for empirical
         # analyses.
         self.num_tau_classes = int(params_d.pop("numTauClasses"))
+        if self.num_tau_classes > 0 and self.fixed_divergence_time_model is not None:
+            num_grps = len(set(self.fixed_divergence_time_model))
+            if num_grps != self.num_tau_classes:
+                raise ValueError("Fixed divergence time model 'M{}' requires {} 'numTauClasses', but {} specified".format(
+                    self.fixed_divergence_time_model, num_grps, self.num_tau_classes))
         # Special param for simulation/testing: fixed tau to a set of
         # particular values. Either '0' (ignored) or a comma-separated list of
         # values. For each potential cluster (= number of species pairs if
@@ -336,7 +352,21 @@ class SisterBayesModel(object):
 
         ## div time
         params["param.divTimeModel"] = "NA" # initialize here, so first column
-        if self.num_tau_classes:
+        if self.fixed_divergence_time_model:
+            num_grps = len(set(self.fixed_divergence_time_model))
+            groups = [[] for idx in range(num_grps)]
+            group_id_group_idx_map = {}
+            assert len(self.fixed_divergence_time_model) == self.num_lineage_pairs
+            for group_id, element_id in zip( self.fixed_divergence_time_model, range(self.num_lineage_pairs) ):
+                try:
+                    group_idx = group_id_group_idx_map[group_id]
+                except KeyError:
+                    group_idx = len(group_id_group_idx_map)
+                    group_id_group_idx_map[group_id] = group_idx
+                groups[group_idx].append(element_id)
+            assert len(groups) == num_grps
+            assert len(groups) == len(group_id_group_idx_map)
+        elif self.num_tau_classes:
             if self.num_tau_classes >= self.num_lineage_pairs:
                 groups = [[idx] for idx in range(self.num_lineage_pairs)]
             else:

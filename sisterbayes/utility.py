@@ -168,6 +168,7 @@ def parse_legacy_configuration(filepath, config_d=None):
             ("bottleproportionshared", float),
             ("migrationshape", float),
             ("migrationscale", float),
+            ("fixeddivtimemodel", str),
             ("numtauclasses", float),
             ("fixedtaus", str),
             ("fixedthetas", str),
