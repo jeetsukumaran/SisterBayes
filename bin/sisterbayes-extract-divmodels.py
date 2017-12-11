@@ -16,6 +16,11 @@ def main():
             nargs='+',
             help="Path to files.")
     processing_options = parser.add_argument_group("Processing Options")
+    processing_options.add_argument(
+            "-t", "--truncate-field-names",
+            action="store_true",
+            default=False,
+            help="Truncate field names.")
     processing_options.add_argument("--field-delimiter",
         type=str,
         default="\t",
@@ -26,6 +31,7 @@ def main():
             action="store_true",
             help="Work silently.")
     args = parser.parse_args()
+    truncate_table = {}
     results = []
     out = sys.stdout
     for file_idx, filepath in enumerate(args.filepaths):
@@ -44,9 +50,17 @@ def main():
                         normalized_case_key.startswith("param.divtime")
                         or normalized_case_key.startswith("param.numdivtimes") ):
                     continue
-                result[key] = row[key]
-        result["source"] = filepath
-        results.append(result)
+                if args.truncate_field_names:
+                    try:
+                        truncated_key = truncate_table[key]
+                    except KeyError:
+                        truncated_key = key.replace("param.", "").replace("divTime.", "").replace("numDivTimes", "psi")
+                        truncate_table[key] = truncated_key
+                    result[truncated_key] = row[key]
+                else:
+                    result[key] = row[key]
+            result["source"] = filepath
+            results.append(result)
     utility.write_dict_csv(
             dest=out,
             list_of_dicts=results,
