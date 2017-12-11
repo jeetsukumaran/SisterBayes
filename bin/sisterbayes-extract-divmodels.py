@@ -36,7 +36,6 @@ def main():
     out = sys.stdout
     for file_idx, filepath in enumerate(args.filepaths):
         src = open(filepath)
-        result = collections.OrderedDict()
         if not args.quiet:
             sys.stderr.write("-- {}\n".format(filepath))
         reader = csv.DictReader(
@@ -44,6 +43,7 @@ def main():
                 delimiter=args.field_delimiter,
                 quoting=csv.QUOTE_NONE)
         for row_idx, row in enumerate(reader):
+            result = collections.OrderedDict()
             for key_idx, key in enumerate(reader.fieldnames):
                 normalized_case_key = key.lower()
                 if not(
