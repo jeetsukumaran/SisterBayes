@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup(
     name="sisterbayes",
-    version="0.1.0",
+    version="2017.12.21",
     author="Jeet Sukumaran",
     author_email="jeetsukumaran@gmail.com",
     packages=["sisterbayes"],

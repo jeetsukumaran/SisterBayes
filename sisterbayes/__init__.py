@@ -37,15 +37,8 @@ import site
 ###############################################################################
 ## PACKAGE METADATA
 import collections
-version_info = collections.namedtuple("dendropy_version_info",
-        ["major", "minor", "micro", "releaselevel"])(
-                major=1,
-                minor=0,
-                micro=0,
-                releaselevel=""
-                )
 __project__ = "SisterBayes"
-__version__ = ".".join(str(s) for s in version_info[:4] if s != "")
+__version__ = "2017.12.21"
 __author__ = "Jeet Sukumaran"
 __copyright__ = "Copyright 2017 Jeet Sukumaran"
 
