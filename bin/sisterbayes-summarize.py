@@ -94,7 +94,7 @@ class SisterBayesSummarizer(object):
 
 def main():
     parser = argparse.ArgumentParser(
-            description="SISTERBAYES Rejection Sampler",
+            description="SISTERBAYES Summarizer",
             )
     parser.add_argument(
             "posteriors_filepath",
