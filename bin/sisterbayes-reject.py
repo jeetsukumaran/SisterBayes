@@ -6,6 +6,7 @@ import os
 import sys
 import argparse
 import collections
+import sisterbayes
 from sisterbayes import utility
 
 class SisterBayesRejector(object):
@@ -20,6 +21,7 @@ class SisterBayesRejector(object):
             is_output_summary_stats=False,
             is_suppress_checks=False,
             ):
+        self.package_id = sisterbayes.package_id()
         self.rejection_criteria_type = rejection_criteria_type
         self.rejection_criteria_value = rejection_criteria_value
         self.run_logger = run_logger
@@ -38,6 +40,7 @@ class SisterBayesRejector(object):
 
     def read_simulated_data(self, filepaths):
         for filepath in filepaths:
+            self.run_logger.info("Running: {}".format(self.package_id))
             self.run_logger.info("Reading simulation file: '{}'".format(filepath))
             with utility.universal_open(filepath) as src:
                 reader = csv.DictReader(
@@ -151,9 +154,11 @@ class SisterBayesRejector(object):
                     dest.write("\n")
 
 def main():
+    package_id = sisterbayes.package_id()
     parser = argparse.ArgumentParser(
             description="SISTERBAYES Rejection Sampler",
             )
+    parser.add_argument("--version", action="version", version=package_id)
     parser.add_argument(
             "target_data_filepath",
             help="Path to target or observed data file.")
@@ -205,6 +210,11 @@ def main():
             "-q", "--quiet",
             action="store_true",
             help="Work silently.")
+    run_options.add_argument('--log-to-file',
+            action='store_true',
+            dest='log_to_file',
+            default=None,
+            help="Save log to file.")
     args = parser.parse_args()
     num_non_Nones = sum([1 for i in (args.max_num, args.max_proportion, args.max_distance) if i is not None])
     if num_non_Nones == 0:
@@ -224,7 +234,7 @@ def main():
             name="sisterbayes-estimate",
             stderr_logging_level="info",
             log_to_stderr=not args.quiet,
-            log_to_file=False
+            log_to_file=args.log_to_file,
             )
     rejector = SisterBayesRejector(
             rejection_criteria_type=rejection_criteria_type,
@@ -241,6 +251,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 

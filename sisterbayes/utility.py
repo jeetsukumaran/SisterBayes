@@ -487,7 +487,7 @@ class RunLogger(object):
             handler1.setFormatter(self.get_default_formatter())
             self._log.addHandler(handler1)
             self.handlers.append(handler1)
-        file_logging_level_req = kwargs.get("file_logging_level", RunLogger.INFO_MESSAGING_LEVEL)
+        file_logging_level_req = kwargs.get("file_logging_level", "info")
         if kwargs.get("log_to_file", True) and file_logging_level_req.upper() != "NONE":
             if "log_stream" in kwargs:
                 log_stream = kwargs.get("log_stream")

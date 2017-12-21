@@ -93,6 +93,15 @@ def main():
     run_options.add_argument("-z", "--random-seed",
             default=None,
             help="Seed for random number generator engine.")
+    run_options.add_argument(
+            "-q", "--quiet",
+            action="store_true",
+            help="Work silently.")
+    run_options.add_argument('--log-to-file',
+            action='store_true',
+            dest='log_to_file',
+            default=None,
+            help="Save log to file.")
     run_options.add_argument("--log-frequency",
             default=None,
             type=int,
@@ -150,8 +159,8 @@ def main():
                     "using the '--fsc2-path' argument.".format(config_d["fsc2_path"]))
     config_d["file_logging_level"] = args.file_logging_level
     config_d["standard_error_logging_level"] = args.stderr_logging_level
-    # config_d["log_to_file"] = args.log_to_file
-    # config_d["log_to_stderr"] = args.log_to_stderr
+    config_d["log_to_file"] = args.log_to_file
+    config_d["log_to_stderr"] = not args.quiet
     config_d["is_unfolded_site_frequency_spectrum"] = args.unfolded_site_frequency_spectrum
     config_d["is_calculate_single_population_sfs"] = args.calculate_single_population_site_frequency_spectrum
     config_d["is_calculate_joint_population_sfs"] = True
