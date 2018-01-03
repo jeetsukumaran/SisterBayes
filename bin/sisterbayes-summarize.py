@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+from __future__ import division
 import math
 import bisect
 import csv
@@ -98,6 +99,21 @@ class SisterBayesSummarizer(object):
                 model_counter[model_name] = 1
         return model_counter
 
+    def cluster_by_num_bins(self,
+            sp_labels,
+            realized_div_time_samples,
+            all_div_times,
+            num_bins):
+        v0 = min(all_div_times)
+        v1 = max(all_div_times)
+        bin_size = (v1-v0)/float(num_bins)
+        print("{}, {}, {}".format(v0, v1, bin_size))
+        return self.cluster_by_bin_size(
+            sp_labels=sp_labels,
+            realized_div_time_samples=realized_div_time_samples,
+            all_div_times=all_div_times,
+            bin_size=bin_size)
+
     def summarize(self, target_data_filepath,):
         with utility.universal_open(target_data_filepath) as src:
             reader = csv.DictReader(
@@ -144,11 +160,11 @@ class SisterBayesSummarizer(object):
             #         realized_div_time_samples=realized_div_time_samples,
             #         all_div_times=all_div_times,
             #         relative_difference_threshold=0.01)
-            categorical_params["param.effectiveDivTimeModel"] = self.cluster_by_bin_size(
+            categorical_params["param.effectiveDivTimeModel"] = self.cluster_by_num_bins(
                     sp_labels=sp_labels,
                     realized_div_time_samples=realized_div_time_samples,
                     all_div_times=all_div_times,
-                    bin_size=0.01)
+                    num_bins=100)
             ### EXPERIMENTAL ###
 
             output_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0]
