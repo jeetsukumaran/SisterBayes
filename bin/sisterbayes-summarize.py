@@ -81,22 +81,16 @@ class SisterBayesSummarizer(object):
         for row_idx, realized_div_time_sample in enumerate(realized_div_time_samples):
             div_time_model_desc = [None for i in sp_labels]
             group_idx = 1
-            assigned_bin_idxs = set()
+            bin_idx_group_idx_map = {}
             for sp_idx, sp_label in enumerate(sp_labels):
                 current_dt = realized_div_time_sample[sp_label]
-                assigned_bin_idx = current_dt / bin_size
-                if sp_idx == 0:
-                    div_time_model_desc[sp_idx] = str(group_idx)
-                    group_idx += 1
-                else:
-                    for prev_sp_idx, prev_sp_label in enumerate(sp_labels[:sp_idx-1]):
-                        ref_dt = realized_div_time_sample[prev_sp_label]
-                        if abs(current_dt - ref_dt) <= (absolute_difference_threshold):
-                            div_time_model_desc[sp_idx] = div_time_model_desc[prev_sp_idx]
-                            break
-                    else:
-                        div_time_model_desc[sp_idx] = str(group_idx)
-                        group_idx += 1
+                assigned_bin_idx = utility.bin_index(current_dt, bin_size)
+                try:
+                    group_idx = bin_idx_group_idx_map[assigned_bin_idx]
+                except KeyError:
+                    group_idx = len(bin_idx_group_idx_map) + 1
+                    bin_idx_group_idx_map[assigned_bin_idx] =  group_idx
+                div_time_model_desc[sp_idx] = str(group_idx)
             model_name = "M"+"".join(div_time_model_desc)
             try:
                 model_counter[model_name] += 1
@@ -145,11 +139,16 @@ class SisterBayesSummarizer(object):
                         if row_idx == 0:
                             sp_labels.append(sp_label)
             ### EXPERIMENTAL ###
-            categorical_params["param.effectiveDivTimeModel"] = self.cluster_by_relative_difference_threshold(
+            # categorical_params["param.effectiveDivTimeModel"] = self.cluster_by_relative_difference_threshold(
+            #         sp_labels=sp_labels,
+            #         realized_div_time_samples=realized_div_time_samples,
+            #         all_div_times=all_div_times,
+            #         relative_difference_threshold=0.01)
+            categorical_params["param.effectiveDivTimeModel"] = self.cluster_by_bin_size(
                     sp_labels=sp_labels,
                     realized_div_time_samples=realized_div_time_samples,
                     all_div_times=all_div_times,
-                    relative_difference_threshold=0.01)
+                    bin_size=0.01)
             ### EXPERIMENTAL ###
 
             output_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0]
