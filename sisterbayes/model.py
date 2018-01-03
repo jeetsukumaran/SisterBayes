@@ -254,6 +254,11 @@ class SisterBayesModel(object):
         if self.pulse_buffer_beta != 0 or self.tau_min != 0 or self.tau_max != 0:
             if self.prior_tau[0] != 0 or self.prior_tau[1] != 0:
                 raise ValueError("Cannot specify gamma-distributed prior and uniform prior on tau at the same time")
+            self.tau_parameterization = "uniform+beta"
+        else:
+            if self.prior_tau[0] == 0 or self.prior_tau[1] == 0:
+                raise ValueError("Must specify either gamma-distributed prior or uniform prior on tau")
+            self.tau_parameterization = "gamma"
         # Shape and scale of Gamma hyperprior on
         # divergence times
         self.prior_migration = (
@@ -398,8 +403,43 @@ class SisterBayesModel(object):
         params["param.numDivTimes"] = len(groups)
         if self.fixed_divergence_times:
             div_time_values = [self.fixed_divergence_times[i] for i in range(len(groups))]
-        else:
+        elif self.tau_parameterization == "gamma":
             div_time_values = [rng.gammavariate(*self.prior_tau) for i in groups]
+        else:
+            div_time_values = []
+            available_time_ranges = [ [self.tau_min, self.tau_max] ]
+            available_time_range_sizes = [ self.tau_max-self.tau_min ]
+            for group_idx, group in enumerate(groups):
+                assert len(available_time_ranges) == len(available_time_range_sizes)
+                # print("---")
+                # print(div_time_values)
+                # print("ranges: {}".format(available_time_ranges))
+                # print("sizes: {}".format(available_time_range_sizes))
+                time_range = weighted_choice(
+                        seq=available_time_ranges,
+                        weights=available_time_range_sizes,
+                        rng=rng)
+                selected_div_time = rng.uniform(time_range[0], time_range[1])
+                # print(selected_div_time)
+                div_time_values.append(selected_div_time)
+                new_available_time_ranges = []
+                new_available_time_range_sizes = []
+                prev_break = self.tau_min
+                for dt in div_time_values:
+                    t0 = dt - self.pulse_buffer_beta
+                    if t0 <= prev_break:
+                        continue
+                    new_available_time_ranges.append( [prev_break, t0] )
+                    new_available_time_range_sizes.append(t0 - prev_break)
+                    prev_break += self.pulse_buffer_beta
+                    if prev_break >= self.tau_max:
+                        break
+                if new_available_time_ranges:
+                    available_time_ranges = new_available_time_ranges
+                    available_time_range_sizes = new_available_time_range_sizes
+                else:
+                    raise ValueError("Unable to sample divergence times: pulse buffer parameter value too large relative to time range")
+            # print("\n\n\n---\n{}\n---\n\n\n".format(div_time_values))
         fsc2_run_configurations = collections.OrderedDict()
         div_time_model_desc = [None for i in range(self.num_lineage_pairs)]
 
