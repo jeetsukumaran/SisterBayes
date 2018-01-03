@@ -41,7 +41,7 @@ class SisterBayesSummarizer(object):
                     elif key in continuous_params:
                         continuous_params[key].append(float(row[key]))
                     else:
-                        if key in ("param.DivTimeModel", "param.numDivTimes"):
+                        if key in ("param.divTimeModel", "param.numDivTimes"):
                             val = row[key]
                             is_categorical = True
                         else:
