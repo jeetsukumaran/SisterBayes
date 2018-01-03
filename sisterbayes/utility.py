@@ -29,7 +29,9 @@
 ##
 ##############################################################################
 
+from __future__ import division
 import shutil
+import math
 import errno
 import collections
 import csv
@@ -449,6 +451,12 @@ def filter_columns_from_file(
         for key in to_delete:
             del row[key]
         target_writer.writerow(row)
+
+##############################################################################
+## Bin calculation
+def bin_index(value, bin_size):
+    b = int(math.ceil(value/bin_size))
+    return b
 
 ##############################################################################
 ## Time Printing
