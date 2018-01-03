@@ -1,11 +1,16 @@
 #! /usr/bin/env python
 
+
 #from distutils.core import setup
 from setuptools import setup
+import sys
+from sisterbayes import __version__, __project__
+sys.stderr.write("-setup.py: {} {}\n".format(__project__, __version__))
+
 
 setup(
     name="sisterbayes",
-    version="2018.01.02",
+    version=__version__,
     author="Jeet Sukumaran",
     author_email="jeetsukumaran@gmail.com",
     packages=["sisterbayes"],
