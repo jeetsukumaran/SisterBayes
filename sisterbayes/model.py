@@ -243,9 +243,17 @@ class SisterBayesModel(object):
         # Shape and scale of Gamma hyperprior on
         # divergence times
         self.prior_tau = (
-                float(params_d.pop("tauShape")),
-                float(params_d.pop("tauScale"))
+                float(params_d.pop("tauShape", 0)),
+                float(params_d.pop("tauScale", 0))
                 )
+        # Alternate time prior parameterization: uniform distribution + beta
+        # parameter to control pulses
+        self.pulse_buffer_beta = float(params_d.pop("pulseBufferBeta", 0))
+        self.tau_min = float(params_d.pop("tauMin", 0))
+        self.tau_max = float(params_d.pop("tauMax", 0))
+        if self.pulse_buffer_beta != 0 or self.tau_min != 0 or self.tau_max != 0:
+            if self.prior_tau[0] != 0 or self.prior_tau[1] != 0:
+                raise ValueError("Cannot specify gamma-distributed prior and uniform prior on tau at the same time")
         # Shape and scale of Gamma hyperprior on
         # divergence times
         self.prior_migration = (
@@ -320,7 +328,9 @@ class SisterBayesModel(object):
         fixed_divergence_times_str = params_d.pop("fixedTaus", "")
         if fixed_divergence_times_str and fixed_divergence_times_str != "0":
             fdt = [float(i.strip()) for i in fixed_divergence_times_str.split(",")]
-            if len(fdt) != self.num_lineage_pairs and self.num_tau_classes > 0 and len(fdt) != self.num_tau_classes:
+            if self.num_tau_classes == 0:
+                self.num_tau_classes = len(fdt)
+            if len(fdt) != self.num_lineage_pairs and (self.num_tau_classes > 0 and len(fdt) != self.num_tau_classes):
                 raise ValueError("Expecting {} values for 'fixedTaus' entry but only found {}".format(self.num_lineage_pairs, len(fdt)))
             self.fixed_divergence_times = fdt
         else:
