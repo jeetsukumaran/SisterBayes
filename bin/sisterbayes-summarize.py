@@ -34,7 +34,11 @@ class SisterBayesSummarizer(object):
                     quoting=csv.QUOTE_NONE)
             categorical_params = collections.OrderedDict()
             continuous_params = collections.OrderedDict()
+            realized_div_time_regimes = []
+            all_div_times = []
+            sp_labels = []
             for row_idx, row in enumerate(reader):
+                realized_div_time_regimes.append({})
                 for key_idx, key in enumerate(reader.fieldnames):
                     if key in categorical_params:
                         categorical_params[key][row[key]] += 1
@@ -56,6 +60,38 @@ class SisterBayesSummarizer(object):
                             categorical_params[key][val] += 1
                         else:
                             continuous_params[key] = [val]
+                    if key.startswith("param.divTime."):
+                        sp_label = key.replace("param.divTime.", "")
+                        realized_div_time_regimes[-1][sp_label] = continuous_params[key][-1]
+                        all_div_times.append(val)
+                        if row_idx == 0:
+                            sp_labels.append(sp_label)
+            ### EXPERIMENTAL ###
+            categorical_params["param.effectiveDivTimeModel"] = collections.Counter()
+            threshold = max(all_div_times) * 0.01
+            for row_idx, realized_div_time_regime in enumerate(realized_div_time_regimes):
+                div_time_model_desc = [None for i in sp_labels]
+                group_idx = 1
+                for sp_idx, sp_label in enumerate(sp_labels):
+                    if sp_idx == 0:
+                        div_time_model_desc[sp_idx] = str(group_idx)
+                        group_idx += 1
+                    else:
+                        current_dt = realized_div_time_regime[sp_label]
+                        for prev_sp_idx, prev_sp_label in enumerate(sp_labels[:sp_idx-1]):
+                            ref_dt = realized_div_time_regime[prev_sp_label]
+                            if abs(current_dt - ref_dt) <= (threshold):
+                                div_time_model_desc[sp_idx] = div_time_model_desc[prev_sp_idx]
+                                break
+                        else:
+                            div_time_model_desc[sp_idx] = str(group_idx)
+                            group_idx += 1
+                model_name = "M"+"".join(div_time_model_desc)
+                try:
+                    categorical_params["param.effectiveDivTimeModel"][model_name] += 1
+                except KeyError:
+                    categorical_params["param.effectiveDivTimeModel"][model_name] = 1
+            ### EXPERIMENTAL ###
             output_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0]
             with utility.universal_open(output_prefix + ".summary.continuous.tsv", "w") as dest:
                 row_results = collections.OrderedDict()
@@ -99,6 +135,7 @@ def main():
     parser.add_argument(
             "posteriors_filepath",
             help="Path to posteriors parameter file.")
+    # summarization_options = parser.add_argument_group("Summarization Options")
     processing_options = parser.add_argument_group("Processing Options")
     processing_options.add_argument("--field-delimiter",
         type=str,
