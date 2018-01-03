@@ -15,10 +15,14 @@ from sisterbayes import utility
 class SisterBayesSummarizer(object):
 
     def __init__(self,
+            cluster_criteria=None,
+            cluster_criteria_value=None,
             field_delimiter="\t",
             exclude_field_patterns=None,
             include_only_field_patterns=None,
             ):
+        self.cluster_criteria = cluster_criteria
+        self.cluster_criteria_value = cluster_criteria_value
         self.field_delimiter = field_delimiter
         self.all_fieldnames = None
         self.other_fieldnames = None
@@ -44,7 +48,7 @@ class SisterBayesSummarizer(object):
                     current_dt = realized_div_time_sample[sp_label]
                     for prev_sp_idx, prev_sp_label in enumerate(sp_labels[:sp_idx-1]):
                         ref_dt = realized_div_time_sample[prev_sp_label]
-                        if abs(current_dt - ref_dt) <= (absolute_difference_threshold):
+                        if abs(current_dt - ref_dt) < (absolute_difference_threshold):
                             div_time_model_desc[sp_idx] = div_time_model_desc[prev_sp_idx]
                             break
                     else:
@@ -107,7 +111,6 @@ class SisterBayesSummarizer(object):
         v0 = min(all_div_times)
         v1 = max(all_div_times)
         bin_size = (v1-v0)/float(num_bins)
-        print("{}, {}, {}".format(v0, v1, bin_size))
         return self.cluster_by_bin_size(
             sp_labels=sp_labels,
             realized_div_time_samples=realized_div_time_samples,
@@ -160,11 +163,33 @@ class SisterBayesSummarizer(object):
             #         realized_div_time_samples=realized_div_time_samples,
             #         all_div_times=all_div_times,
             #         relative_difference_threshold=0.01)
-            categorical_params["param.effectiveDivTimeModel"] = self.cluster_by_num_bins(
-                    sp_labels=sp_labels,
-                    realized_div_time_samples=realized_div_time_samples,
-                    all_div_times=all_div_times,
-                    num_bins=100)
+            if self.cluster_criteria is not None:
+                if self.cluster_criteria == "bin_size":
+                    cluster_results = self.cluster_by_bin_size(
+                        sp_labels=sp_labels,
+                        realized_div_time_samples=realized_div_time_samples,
+                        all_div_times=all_div_times,
+                        bin_size=self.cluster_criteria_value)
+                elif self.cluster_criteria == "num_bins":
+                    cluster_results = self.cluster_by_num_bins(
+                        sp_labels=sp_labels,
+                        realized_div_time_samples=realized_div_time_samples,
+                        all_div_times=all_div_times,
+                        num_bins=self.cluster_criteria_value)
+                elif self.cluster_criteria == "absolute_difference_threshold":
+                    cluster_results = self.cluster_by_absolute_difference_threshold(
+                        sp_labels=sp_labels,
+                        realized_div_time_samples=realized_div_time_samples,
+                        absolute_difference_threshold=self.cluster_criteria_value)
+                elif self.cluster_criteria == "relative_difference_threshold":
+                    cluster_results = self.cluster_by_relative_difference_threshold(
+                        sp_labels=sp_labels,
+                        realized_div_time_samples=realized_div_time_samples,
+                        all_div_times=all_div_times,
+                        relative_difference_threshold=self.cluster_criteria_value)
+                else:
+                    raise ValueError("Unrecognized cluster criteria: '{}'".format(self.cluster_criteria))
+                categorical_params["param.effectiveDivTimeModel"] = cluster_results
             ### EXPERIMENTAL ###
 
             output_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0]
@@ -210,7 +235,25 @@ def main():
     parser.add_argument(
             "posteriors_filepath",
             help="Path to posteriors parameter file.")
-    # summarization_options = parser.add_argument_group("Summarization Options")
+    clustering_options = parser.add_argument_group("Clustering Options",
+            "Calculate an 'effective' divergence time model based on clustering lineage pairs into simultaneous diverging groups using actual divergence times rather than labeled generating model.")
+    # clustering_options =  parser.add_mutually_exclusive_group(required=True)
+    clustering_options.add_argument("--bin-size",
+        type=float,
+        default=None,
+        help="Cluster using divergence times bins of the specified size.")
+    clustering_options.add_argument("--num-bins",
+        type=float,
+        default=None,
+        help="Cluster by splitting the range of divergence times uniformly into the specified number of bins.")
+    clustering_options.add_argument("--absolute-difference-threshold",
+        type=float,
+        default=None,
+        help="Cluster by grouping together divergence times less than the specified threshold.")
+    clustering_options.add_argument("--relative-difference-threshold",
+        type=float,
+        default=None,
+        help="Cluster by grouping together divergence times less than the specified threshold, expressed as a proportion of the range of divergence times.")
     processing_options = parser.add_argument_group("Processing Options")
     processing_options.add_argument("--field-delimiter",
         type=str,
@@ -222,7 +265,23 @@ def main():
             action="store_true",
             help="Work silently.")
     args = parser.parse_args()
-    summarizer = SisterBayesSummarizer(field_delimiter=args.field_delimiter)
+
+    num_selected_clustering_options = 0
+    cluster_criteria = None
+    cluster_criteria_value = None
+    for a in ("bin_size", "num_bins", "absolute_difference_threshold", "relative_difference_threshold"):
+        if getattr(args, a) is not None:
+            num_selected_clustering_options += 1
+            cluster_criteria = a
+            cluster_criteria_value = getattr(args, a)
+    if num_selected_clustering_options > 1:
+        sys.exit("Multiple clustering strategies selected: plese select just one")
+
+    summarizer = SisterBayesSummarizer(
+            cluster_criteria=cluster_criteria,
+            cluster_criteria_value=cluster_criteria_value,
+            field_delimiter=args.field_delimiter,
+            )
     summarizer.summarize(args.posteriors_filepath)
 
 if __name__ == "__main__":
