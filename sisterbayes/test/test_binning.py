@@ -2,12 +2,12 @@
 
 import unittest
 import bisect
-from sisterbayes import utility
+from sisterbayes import calclib
 
 class BisectTestCase(unittest.TestCase):
 
     def validateBinIndex(self, value, bin_size):
-        obs = utility.bin_index(value, bin_size)
+        obs = calclib.bin_index(value, bin_size)
         factor = 1e6
         check_array = [i/float(factor) for i in range(0, int(value * 2 * factor), int(bin_size * factor))]
         self.assertEqual(bisect.bisect_left(check_array, value), obs)

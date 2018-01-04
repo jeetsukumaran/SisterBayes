@@ -456,12 +456,6 @@ def filter_columns_from_file(
         target_writer.writerow(row)
 
 ##############################################################################
-## Bin calculation
-def bin_index(value, bin_size):
-    b = int(math.ceil(value/bin_size))
-    return b
-
-##############################################################################
 ## Time Printing
 
 def format_elapsed_time(eta):

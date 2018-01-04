@@ -38,9 +38,9 @@ import site
 ## PACKAGE METADATA
 import collections
 __project__ = "SisterBayes"
-__version__ = "2018.01.03"
+__version__ = "2018.01.04"
 __author__ = "Jeet Sukumaran"
-__copyright__ = "Copyright 2017 Jeet Sukumaran"
+__copyright__ = "Copyright 2017-2018 Jeet Sukumaran"
 
 # Return the git revision as a string
 # Modified from: NumPy

@@ -9,8 +9,8 @@ import sys
 import argparse
 import collections
 import re
-from dendropy.calculate import statistics
 from sisterbayes import utility
+from sisterbayes import calclib
 
 class SisterBayesSummarizer(object):
 
@@ -89,7 +89,7 @@ class SisterBayesSummarizer(object):
             bin_idx_group_idx_map = {}
             for sp_idx, sp_label in enumerate(sp_labels):
                 current_dt = realized_div_time_sample[sp_label]
-                assigned_bin_idx = utility.bin_index(current_dt, bin_size)
+                assigned_bin_idx = calclib.bin_index(current_dt, bin_size)
                 try:
                     group_idx = bin_idx_group_idx_map[assigned_bin_idx]
                 except KeyError:
@@ -198,7 +198,7 @@ class SisterBayesSummarizer(object):
                 for param_idx, param_name in enumerate(continuous_params):
                     values = continuous_params[param_name]
                     row_results["param"] = param_name
-                    summary = statistics.summarize(values)
+                    summary = calclib.summarize(values)
                     row_results["mean"] = summary["mean"]
                     row_results["var"] = summary["var"]
                     row_results["sd"] = summary["sd"]
