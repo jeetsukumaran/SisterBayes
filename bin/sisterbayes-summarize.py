@@ -9,6 +9,7 @@ import sys
 import argparse
 import collections
 import re
+import sisterbayes
 from sisterbayes import utility
 from sisterbayes import calclib
 
@@ -235,6 +236,8 @@ def main():
     parser.add_argument(
             "posteriors_filepath",
             help="Path to posteriors parameter file.")
+    package_id = sisterbayes.package_id()
+    parser.add_argument("--version", action="version", version=package_id)
     clustering_options = parser.add_argument_group("Clustering Options",
             "Calculate an 'effective' divergence time model based on clustering lineage pairs into simultaneous diverging groups using actual divergence times rather than labeled generating model.")
     # clustering_options =  parser.add_mutually_exclusive_group(required=True)
