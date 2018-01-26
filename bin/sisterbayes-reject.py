@@ -222,27 +222,26 @@ class SisterBayesMemoryLimitedRejector(SisterBayesRejector):
                 if target_row_idx == 0:
                     self.stat_fieldnames = self.extract_stat_fieldnames(target_data_reader.fieldnames)
                     self.stat_fieldnames_set = set(self.stat_fieldnames)
-                distanced_scored_params_filepath = "{}.scored-params.{:03d}{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
-                posteriors_filepath = "{}.posterior.{:03d}{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
                 self.run_logger.info("Scoring target data {}".format(target_row_idx+1))
                 target_data_vector = self.extract_stats_data_vector_from_csv_row(target_row)
-                num_samples = self.score_simulated_data(
+                posteriors_filepath = "{}.posterior.{:03d}{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
+                self.accept_reject(
                         target_data_vector=target_data_vector,
                         priors_data_filepaths=priors_data_filepaths,
-                        output_filepath=distanced_scored_params_filepath)
-                self.accept_posteriors(
-                        distanced_scored_params_filepath=distanced_scored_params_filepath,
-                        num_samples=num_samples,
                         output_filepath=posteriors_filepath)
 
-    def score_simulated_data(self,
+    def accept_reject(self,
             target_data_vector,
             priors_data_filepaths,
             output_filepath):
+        if self.rejection_criteria_type == "num":
+            num_to_retain = self.rejection_criteria_value
+        else:
+            num_to_retain = None
         dest = utility.universal_open(output_filepath, "w")
         all_prior_fieldnames = []
         all_prior_fieldnames_set = None
-        num_samples = 0
+        accepted_heap = []
         for fidx, priors_data_filepath in enumerate(priors_data_filepaths):
             self.run_logger.info("Reading simulation file {} of {}: '{}'".format(fidx+1, len(priors_data_filepaths), priors_data_filepath))
             with utility.universal_open(priors_data_filepath) as src:
@@ -281,61 +280,80 @@ class SisterBayesMemoryLimitedRejector(SisterBayesRejector):
                                 raise ValueError("File '{}': Following fields found in previous files, but not found here: {}".format(
                                     priors_data_filepath, ", ".join(s2)))
                     prior_data_vector = self.extract_stats_data_vector_from_csv_row(row)
-                    distance = self.euclidean_distance(target_data_vector, prior_data_vector)
-                    for fnidx, fn in enumerate(all_prior_fieldnames):
-                        value = row[fn]
-                        if self.is_output_summary_stats or fn not in self.stat_fieldnames_set:
-                            dest.write("{}{}".format(value, self.field_delimiter))
-                    dest.write("{}\n".format(distance))
-                    num_samples += 1
-        dest.flush()
-        dest.close()
-        return num_samples
-
-    def accept_posteriors(self, distanced_scored_params_filepath, num_samples, output_filepath):
-        dest = utility.universal_open(output_filepath, "w")
-        if self.rejection_criteria_type == "num":
-            num_to_retain = self.rejection_criteria_value
-        elif self.rejection_criteria_type == "proportion":
-            num_to_retain = int(self.rejection_criteria_value * num_samples)
-        accepted_heap = []
-        self.run_logger.info("Accepting/rejecting simulations from the prior ...")
-        with utility.universal_open(distanced_scored_params_filepath) as src:
-            priors_data_reader = csv.DictReader(
-                    src,
-                    delimiter=self.field_delimiter,
-                    quoting=csv.QUOTE_NONE)
-            for row_idx, row in enumerate(priors_data_reader):
-                if self.logging_frequency and row_idx > 0 and row_idx % self.logging_frequency == 0:
-                    self.run_logger.info("Accepting/rejecting: row {}".format(row_idx+1))
-                if row_idx == 0:
-                    dest.write(self.field_delimiter.join(priors_data_reader.fieldnames))
-                    dest.write("\n")
-                distance_score = float(row[self.distance_score_fieldname])
-                row_values = self.field_delimiter.join(row[k] for k in priors_data_reader.fieldnames)
-                if self.rejection_criteria_type == "distance":
-                    if float(distance_score) <= self.rejection_criteria_value:
-                        dest.write(row_values)
-                        dest.write("\n")
-                else:
-                    # heap_score = (1.0/(distance_score + 1))
-                    # heap_score = -1 * (distance_score + 1)
+                    distance_score = self.euclidean_distance(target_data_vector, prior_data_vector)
+                    row_values = self.field_delimiter.join(row[fn] for fn in priors_data_reader.fieldnames if self.is_output_summary_stats or fn not in self.stat_fieldnames_set)
+                    row_values = "{}{}{}".format(row_values, self.field_delimiter, distance_score)
                     heap_score = -1 * (distance_score)
                     heap_entry = (heap_score, row_values)
-                    if len(accepted_heap) < num_to_retain:
-                        accepted_heap.append( heap_entry  )
-                        if len(accepted_heap) == num_to_retain:
-                            heapq.heapify(accepted_heap)
+                    if self.rejection_criteria_type == "distance":
+                        if distance_score <= self.rejection_criteria_value:
+                            accepted_heap.append(heap_entry)
+                    elif self.rejection_criteria_type == "num":
+                        if len(accepted_heap) < num_to_retain:
+                            accepted_heap.append(heap_entry)
+                            if len(accepted_heap) == num_to_retain:
+                                heapq.heapify(accepted_heap)
+                        else:
+                            heapq.heappushpop(accepted_heap, heap_entry)
                     else:
-                        heapq.heappushpop(accepted_heap, heap_entry)
-        if self.rejection_criteria_type != "distance":
-            accepted_heap.sort(reverse=True)
-            for hidx, heap_entry in enumerate(accepted_heap):
-                heap_entry = accepted_heap[hidx]
-                dest.write(heap_entry[1])
-                dest.write("\n")
+                        raise NotImplementedError(self.rejection_criteria_type)
+                    # for fnidx, fn in enumerate(all_prior_fieldnames):
+                    #     value = row[fn]
+                    #     if self.is_output_summary_stats or fn not in self.stat_fieldnames_set:
+                    #         dest.write("{}{}".format(value, self.field_delimiter))
+                    # dest.write("{}\n".format(distance))
+        accepted_heap.sort(reverse=True)
+        for hidx, heap_entry in enumerate(accepted_heap):
+            heap_entry = accepted_heap[hidx]
+            dest.write(heap_entry[1])
+            dest.write("\n")
         dest.flush()
         dest.close()
+
+    # def accept_posteriors(self, distanced_scored_params_filepath, num_samples, output_filepath):
+    #     dest = utility.universal_open(output_filepath, "w")
+    #     if self.rejection_criteria_type == "num":
+    #         num_to_retain = self.rejection_criteria_value
+    #     elif self.rejection_criteria_type == "proportion":
+    #         num_to_retain = int(self.rejection_criteria_value * num_samples)
+    #     accepted_heap = []
+    #     self.run_logger.info("Accepting/rejecting simulations from the prior ...")
+    #     with utility.universal_open(distanced_scored_params_filepath) as src:
+    #         priors_data_reader = csv.DictReader(
+    #                 src,
+    #                 delimiter=self.field_delimiter,
+    #                 quoting=csv.QUOTE_NONE)
+    #         for row_idx, row in enumerate(priors_data_reader):
+    #             if self.logging_frequency and row_idx > 0 and row_idx % self.logging_frequency == 0:
+    #                 self.run_logger.info("Accepting/rejecting: row {}".format(row_idx+1))
+    #             if row_idx == 0:
+    #                 dest.write(self.field_delimiter.join(priors_data_reader.fieldnames))
+    #                 dest.write("\n")
+    #             distance_score = float(row[self.distance_score_fieldname])
+    #             row_values = self.field_delimiter.join(row[k] for k in priors_data_reader.fieldnames)
+    #             if self.rejection_criteria_type == "distance":
+    #                 if float(distance_score) <= self.rejection_criteria_value:
+    #                     dest.write(row_values)
+    #                     dest.write("\n")
+    #             else:
+    #                 # heap_score = (1.0/(distance_score + 1))
+    #                 # heap_score = -1 * (distance_score + 1)
+    #                 heap_score = -1 * (distance_score)
+    #                 heap_entry = (heap_score, row_values)
+    #                 if len(accepted_heap) < num_to_retain:
+    #                     accepted_heap.append( heap_entry  )
+    #                     if len(accepted_heap) == num_to_retain:
+    #                         heapq.heapify(accepted_heap)
+    #                 else:
+    #                     heapq.heappushpop(accepted_heap, heap_entry)
+    #     if self.rejection_criteria_type != "distance":
+    #         accepted_heap.sort(reverse=True)
+    #         for hidx, heap_entry in enumerate(accepted_heap):
+    #             heap_entry = accepted_heap[hidx]
+    #             dest.write(heap_entry[1])
+    #             dest.write("\n")
+    #     dest.flush()
+    #     dest.close()
 
 def main():
     package_id = sisterbayes.package_id()
@@ -357,12 +375,12 @@ def main():
             metavar="#",
             default=None,
             help="Retain this number of samples from the prior into the posterior.")
-    rejection_criteria.add_argument(
-            "-p", "--max-proportion",
-            type=float,
-            metavar="0.##",
-            default=None,
-            help="Retain this proportion (0 > 'p' > 1.0) of samples from the prior into the posterior.")
+    # rejection_criteria.add_argument(
+    #         "-p", "--max-proportion",
+    #         type=float,
+    #         metavar="0.##",
+    #         default=None,
+    #         help="Retain this proportion (0 > 'p' > 1.0) of samples from the prior into the posterior.")
     rejection_criteria.add_argument(
             "-d", "--max-distance",
             type=float,
@@ -412,11 +430,11 @@ def main():
             default=None,
             help="Save log to file.")
     args = parser.parse_args()
-    num_non_Nones = sum([1 for i in (args.max_num, args.max_proportion, args.max_distance) if i is not None])
+    num_non_Nones = sum([1 for i in (args.max_num, args.max_distance) if i is not None])
     if num_non_Nones == 0:
-        sys.exit("Require exactly one of '-n'/'--max-num', '-p'/'--max-proportion', or '-d'/'--max-distance' to be specified.")
+        sys.exit("Require exactly one of '-n'/'--max-num', or '-d'/'--max-distance' to be specified.")
     elif num_non_Nones > 1:
-        sys.exit("Require only one of '-n'/'--max-num', '-p'/'--max-proportion', or '-d'/'--max-distance' to be specified.")
+        sys.exit("Require only one of '-n'/'--max-num', or '-d'/'--max-distance' to be specified.")
     if args.max_num:
         rejection_criteria_type = "num"
         rejection_criteria_value = args.max_num
