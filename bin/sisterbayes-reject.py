@@ -32,156 +32,6 @@ class SisterBayesRejector(object):
         self.is_suppress_checks = is_suppress_checks
         self.stat_fieldnames = None
         self.stat_fieldnames_check = None
-
-    def euclidean_distance(self, vector1, vector2):
-        assert len(vector1) == len(vector2)
-        dist = [(a - b)**2 for a, b in zip(vector1, vector2)]
-        dist = math.sqrt(sum(dist))
-        return dist
-
-class SisterBayesInMemoryRejector(SisterBayesRejector):
-
-    def __init__(self, *args, **kwargs):
-        SisterBayesRejector.__init__(self, *args, **kwargs)
-        self.other_fieldname_check = None
-        self.all_fieldnames = None
-        self.other_fieldnames = None
-        self.stat_values = []
-        self.other_values = []
-
-    def read_simulated_data(self, filepaths):
-        for filepath in filepaths:
-            self.run_logger.info("Reading simulation file: '{}'".format(filepath))
-            with utility.universal_open(filepath) as src:
-                reader = csv.DictReader(
-                        src,
-                        delimiter=self.field_delimiter,
-                        quoting=csv.QUOTE_NONE)
-                for row_idx, row in enumerate(reader):
-                    if self.logging_frequency and row_idx > 0 and row_idx % self.logging_frequency == 0:
-                        self.run_logger.info("- Processing row {}".format(row_idx+1))
-                    if self.all_fieldnames is None:
-                        self.all_fieldnames = list(reader.fieldnames)
-                        self.stat_fieldnames = []
-                        self.other_fieldnames = []
-                        for field in reader.fieldnames:
-                            if field.startswith(self.stats_field_prefix):
-                                self.stat_fieldnames.append(field)
-                            else:
-                                self.other_fieldnames.append(field)
-                        self.stat_fieldnames_check = set(self.stat_fieldnames)
-                        self.other_fieldname_check = set(self.other_fieldnames)
-                    row_stat_values = []
-                    row_other_values = []
-                    for key_idx, key in enumerate(self.all_fieldnames): # keys must be read in same order!
-                        if not self.is_suppress_checks:
-                            if key not in self.stat_fieldnames_check and key not in self.other_fieldname_check:
-                                raise ValueError("File '{}', row {}, column {}: field '{}' not recognized".format(
-                                    filepath, row_idx+1, key_idx+1, key))
-                        if key.startswith(self.stats_field_prefix):
-                            row_stat_values.append(float(row[key]))
-                        else:
-                            row_other_values.append( row[key] )
-                    # assert len(row) == len(row_stat_values) + len(row_other_values)
-                    self.stat_values.append(row_stat_values)
-                    self.other_values.append(row_other_values)
-
-    def closest_values_indexes(self, target_stat_values, num_to_retain):
-        assert len(target_stat_values) == len(self.stat_fieldnames), "Expecting {} values but found {}".format(
-                len(self.stat_fieldnames),
-                len(target_stat_values),
-                )
-        results = []
-        for idx, prior_value in enumerate(self.stat_values):
-            d = self.euclidean_distance(prior_value, target_stat_values)
-            results.append((d, idx,))
-        results.sort(key=lambda x: x[0])
-        return results[:num_to_retain]
-
-    def filter_by_distance(self, target_stat_values, max_distance):
-        assert len(target_stat_values) == len(self.stat_fieldnames), "Expecting {} values but found {}".format(
-                len(self.stat_fieldnames),
-                len(target_stat_values),
-                )
-        results = []
-        for idx, prior_value in enumerate(self.stat_values):
-            d = self.euclidean_distance(prior_value, target_stat_values)
-            if d <= max_distance:
-                results.append((d, idx,))
-        results.sort(key=lambda x: x[0])
-        return results[:num_to_retain]
-
-    def write_posterior(self, output_prefix, target_data_filepath, output_suffix=None):
-        if output_prefix is None:
-            output_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0] + ".posterior"
-        if output_suffix is None:
-            output_suffix = ""
-        else:
-            output_suffix = "." + output_suffix
-        with utility.universal_open(target_data_filepath) as src:
-            reader = csv.DictReader(
-                    src,
-                    delimiter=self.field_delimiter,
-                    quoting=csv.QUOTE_NONE)
-            for row_idx, row in enumerate(reader):
-                assert len(row) == len(reader.fieldnames)
-                target_stat_values = []
-                target_other_values = []
-                for key_idx, key in enumerate(self.all_fieldnames): # keys must be read in same order!
-                    if key not in row:
-                        continue
-                    if not self.is_suppress_checks:
-                        if key not in self.stat_fieldnames_check and key not in self.other_fieldname_check:
-                            raise ValueError("File '{}', target {}, column {}: field '{}' not recognized".format(
-                                target_data_filepath, target_idx+1, key_idx+1, key))
-                    if key.startswith(self.stats_field_prefix):
-                        target_stat_values.append(float(row[key]))
-                    else:
-                        target_other_values.append( row[key] )
-                if self.rejection_criteria_type == "distance":
-                    posterior_indexes = self.filter_by_distance(
-                        target_stat_values=target_stat_values,
-                        max_distance=self.rejection_criteria_value)
-                else:
-                    if self.rejection_criteria_type == "num":
-                        num_to_retain = self.rejection_criteria_value
-                    elif self.rejection_criteria_type == "proportion":
-                        num_to_retain = int(self.rejection_criteria_value * len(target_stat_values))
-                    posterior_indexes = self.closest_values_indexes(
-                        target_stat_values=target_stat_values,
-                        num_to_retain=num_to_retain,)
-                dest = utility.universal_open(output_prefix + ".{:03d}{}.tsv".format(row_idx+1, output_suffix), "w")
-                dest.write(self.field_delimiter.join(str(v) for v in self.other_fieldnames))
-                dest.write(self.field_delimiter)
-                dest.write("rejection.score")
-                if self.is_output_summary_stats:
-                    dest.write(self.field_delimiter)
-                    dest.write(self.field_delimiter.join(str(v) for v in self.stat_fieldnames))
-                dest.write("\n")
-                for distance, index in posterior_indexes:
-                    dest.write(self.field_delimiter.join(str(v) for v in self.other_values[index]))
-                    dest.write(self.field_delimiter)
-                    dest.write("{}".format(distance))
-                    if self.is_output_summary_stats:
-                        dest.write(self.field_delimiter)
-                        dest.write(self.field_delimiter.join(str(v) for v in self.stat_values[index]))
-                    dest.write("\n")
-
-    def process(self,
-            target_data_filepath,
-            priors_data_filepaths,
-            output_prefix,
-            output_suffix):
-        self.read_simulated_data(priors_data_filepaths)
-        self.write_posterior(
-                target_data_filepath=target_data_filepath,
-                output_prefix=output_prefix,
-                output_suffix=output_suffix)
-
-class SisterBayesMemoryLimitedRejector(SisterBayesRejector):
-
-    def __init__(self, *args, **kwargs):
-        SisterBayesRejector.__init__(self, *args, **kwargs)
         self.distance_score_fieldname = "rejection.score"
 
     def euclidean_distance(self, vector1, vector2):
@@ -414,12 +264,12 @@ def main():
             action="store_true",
             help="Include summary stats in the samples from the posterior.")
     run_options = parser.add_argument_group("Run Options")
-    run_options.add_argument(
-            "-L", "--large-file",
-            dest="limit_memory",
-            action="store_true",
-            default=False,
-            help="Use two-pass processing that reduces memory footprint by not requiring entire simulations/priors file(s) to be read into memory at once.")
+    # run_options.add_argument(
+    #         "-L", "--large-file",
+    #         dest="limit_memory",
+    #         action="store_true",
+    #         default=False,
+    #         help="Use two-pass processing that reduces memory footprint by not requiring entire simulations/priors file(s) to be read into memory at once.")
     run_options.add_argument(
             "-q", "--quiet",
             action="store_true",
@@ -451,11 +301,7 @@ def main():
             log_to_file=args.log_to_file,
             )
     run_logger.info("Running: {}".format(package_id))
-    if args.limit_memory:
-        rejector_type = SisterBayesMemoryLimitedRejector
-    else:
-        rejector_type = SisterBayesInMemoryRejector
-    rejector = rejector_type(
+    rejector = SisterBayesRejector(
             rejection_criteria_type=rejection_criteria_type,
             rejection_criteria_value=rejection_criteria_value,
             run_logger=run_logger,
