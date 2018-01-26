@@ -19,7 +19,8 @@ class SisterBayesRejector(object):
             stats_field_prefix="stat",
             logging_frequency=1000,
             field_delimiter="\t",
-            is_output_summary_stats=False,
+            is_write_summary_stats=False,
+            is_write_rejection_score=False,
             is_suppress_checks=False,
             ):
         self.rejection_criteria_type = rejection_criteria_type
@@ -28,7 +29,8 @@ class SisterBayesRejector(object):
         self.stats_field_prefix = stats_field_prefix
         self.logging_frequency = logging_frequency
         self.field_delimiter = field_delimiter
-        self.is_output_summary_stats = is_output_summary_stats
+        self.is_write_summary_stats = is_write_summary_stats
+        self.is_write_rejection_score = is_write_rejection_score
         self.is_suppress_checks = is_suppress_checks
         self.stat_fieldnames = None
         self.stat_fieldnames_check = None
@@ -115,10 +117,13 @@ class SisterBayesRejector(object):
                             if s2:
                                 raise ValueError("File '{}': Following summary statistics fields given in target but not found here: {}".format(
                                     priors_data_filepath, ", ".join(s2)))
+                            header_row = []
                             for fnidx, fn in enumerate(all_prior_fieldnames):
-                                if self.is_output_summary_stats or fn not in self.stat_fieldnames_set:
-                                    dest.write("{}{}".format(fn, self.field_delimiter))
-                            dest.write("{}\n".format(self.distance_score_fieldname))
+                                if self.is_write_summary_stats or fn not in self.stat_fieldnames_set:
+                                    header_row.append(fn)
+                            if self.is_write_rejection_score:
+                                header_row.append(self.distance_score_fieldname)
+                            dest.write("{}\n".format(self.field_delimiter.join(header_row)))
                         else:
                             current_file_fieldnames = set(priors_data_reader.fieldnames)
                             s1 = current_file_fieldnames - all_prior_fieldnames_set
@@ -131,8 +136,9 @@ class SisterBayesRejector(object):
                                     priors_data_filepath, ", ".join(s2)))
                     prior_data_vector = self.extract_stats_data_vector_from_csv_row(row)
                     distance_score = self.euclidean_distance(target_data_vector, prior_data_vector)
-                    row_values = self.field_delimiter.join(row[fn] for fn in priors_data_reader.fieldnames if self.is_output_summary_stats or fn not in self.stat_fieldnames_set)
-                    row_values = "{}{}{}".format(row_values, self.field_delimiter, distance_score)
+                    row_values = self.field_delimiter.join(row[fn] for fn in priors_data_reader.fieldnames if self.is_write_summary_stats or fn not in self.stat_fieldnames_set)
+                    if self.is_write_rejection_score:
+                        row_values = "{}{}{}".format(row_values, self.field_delimiter, distance_score)
                     heap_score = -1 * (distance_score)
                     heap_entry = (heap_score, row_values)
                     if self.rejection_criteria_type == "distance":
@@ -149,7 +155,7 @@ class SisterBayesRejector(object):
                         raise NotImplementedError(self.rejection_criteria_type)
                     # for fnidx, fn in enumerate(all_prior_fieldnames):
                     #     value = row[fn]
-                    #     if self.is_output_summary_stats or fn not in self.stat_fieldnames_set:
+                    #     if self.is_write_summary_stats or fn not in self.stat_fieldnames_set:
                     #         dest.write("{}{}".format(value, self.field_delimiter))
                     # dest.write("{}\n".format(distance))
         accepted_heap.sort(reverse=True)
@@ -260,9 +266,13 @@ def main():
             metavar='NAME-SUFFIX',
             help="Suffix for output filename.")
     output_options.add_argument(
-            "--output-summary-stats",
+            "--write-summary-stats",
             action="store_true",
             help="Include summary stats in the samples from the posterior.")
+    output_options.add_argument(
+            "--write-rejection-score",
+            action="store_true",
+            help="Include rejection score in the output.")
     run_options = parser.add_argument_group("Run Options")
     # run_options.add_argument(
     #         "-L", "--large-file",
@@ -307,7 +317,8 @@ def main():
             run_logger=run_logger,
             stats_field_prefix=args.stats_field_prefix,
             field_delimiter=args.field_delimiter,
-            is_output_summary_stats=args.output_summary_stats,
+            is_write_summary_stats=args.write_summary_stats,
+            is_write_rejection_score=args.write_rejection_score,
             )
     rejector.process(
             target_data_filepath=args.target_data_filepath,
