@@ -5,6 +5,7 @@ import csv
 import os
 import sys
 import argparse
+import heapq
 import collections
 import sisterbayes
 from sisterbayes import utility
@@ -21,7 +22,6 @@ class SisterBayesRejector(object):
             is_output_summary_stats=False,
             is_suppress_checks=False,
             ):
-        self.package_id = sisterbayes.package_id()
         self.rejection_criteria_type = rejection_criteria_type
         self.rejection_criteria_value = rejection_criteria_value
         self.run_logger = run_logger
@@ -30,17 +30,27 @@ class SisterBayesRejector(object):
         self.field_delimiter = field_delimiter
         self.is_output_summary_stats = is_output_summary_stats
         self.is_suppress_checks = is_suppress_checks
-        self.all_fieldnames = None
-        self.other_fieldnames = None
         self.stat_fieldnames = None
         self.stat_fieldnames_check = None
+
+    def euclidean_distance(self, vector1, vector2):
+        assert len(vector1) == len(vector2)
+        dist = [(a - b)**2 for a, b in zip(vector1, vector2)]
+        dist = math.sqrt(sum(dist))
+        return dist
+
+class SisterBayesInMemoryRejector(SisterBayesRejector):
+
+    def __init__(self, *args, **kwargs):
+        SisterBayesRejector.__init__(self, *args, **kwargs)
         self.other_fieldname_check = None
+        self.all_fieldnames = None
+        self.other_fieldnames = None
         self.stat_values = []
         self.other_values = []
 
     def read_simulated_data(self, filepaths):
         for filepath in filepaths:
-            self.run_logger.info("Running: {}".format(self.package_id))
             self.run_logger.info("Reading simulation file: '{}'".format(filepath))
             with utility.universal_open(filepath) as src:
                 reader = csv.DictReader(
@@ -76,12 +86,6 @@ class SisterBayesRejector(object):
                     self.stat_values.append(row_stat_values)
                     self.other_values.append(row_other_values)
 
-    def euclidean_distance(self, vector1, vector2):
-        assert len(vector1) == len(vector2)
-        dist = [(a - b)**2 for a, b in zip(vector1, vector2)]
-        dist = math.sqrt(sum(dist))
-        return dist
-
     def closest_values_indexes(self, target_stat_values, num_to_retain):
         assert len(target_stat_values) == len(self.stat_fieldnames), "Expecting {} values but found {}".format(
                 len(self.stat_fieldnames),
@@ -107,9 +111,13 @@ class SisterBayesRejector(object):
         results.sort(key=lambda x: x[0])
         return results[:num_to_retain]
 
-    def write_posterior(self, output_prefix, target_data_filepath):
+    def write_posterior(self, output_prefix, target_data_filepath, output_suffix=None):
         if output_prefix is None:
             output_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0] + ".posterior"
+        if output_suffix is None:
+            output_suffix = ""
+        else:
+            output_suffix = "." + output_suffix
         with utility.universal_open(target_data_filepath) as src:
             reader = csv.DictReader(
                     src,
@@ -142,16 +150,192 @@ class SisterBayesRejector(object):
                     posterior_indexes = self.closest_values_indexes(
                         target_stat_values=target_stat_values,
                         num_to_retain=num_to_retain,)
-                dest = utility.universal_open(output_prefix + ".{}.tsv".format(row_idx+1), "w")
+                dest = utility.universal_open(output_prefix + ".{:03d}{}.tsv".format(row_idx+1, output_suffix), "w")
                 dest.write(self.field_delimiter.join(str(v) for v in self.other_fieldnames))
+                dest.write(self.field_delimiter)
+                dest.write("rejection.score")
                 if self.is_output_summary_stats:
+                    dest.write(self.field_delimiter)
                     dest.write(self.field_delimiter.join(str(v) for v in self.stat_fieldnames))
                 dest.write("\n")
                 for distance, index in posterior_indexes:
                     dest.write(self.field_delimiter.join(str(v) for v in self.other_values[index]))
+                    dest.write(self.field_delimiter)
+                    dest.write("{}".format(distance))
                     if self.is_output_summary_stats:
+                        dest.write(self.field_delimiter)
                         dest.write(self.field_delimiter.join(str(v) for v in self.stat_values[index]))
                     dest.write("\n")
+
+    def process(self,
+            target_data_filepath,
+            priors_data_filepaths,
+            output_prefix,
+            output_suffix):
+        self.read_simulated_data(priors_data_filepaths)
+        self.write_posterior(
+                target_data_filepath=target_data_filepath,
+                output_prefix=output_prefix,
+                output_suffix=output_suffix)
+
+class SisterBayesMemoryLimitedRejector(SisterBayesRejector):
+
+    def __init__(self, *args, **kwargs):
+        SisterBayesRejector.__init__(self, *args, **kwargs)
+        self.distance_score_fieldname = "rejection.score"
+
+    def euclidean_distance(self, vector1, vector2):
+        assert len(vector1) == len(vector2)
+        dist = [(a - b)**2 for a, b in zip(vector1, vector2)]
+        dist = math.sqrt(sum(dist))
+        return dist
+
+    def extract_stat_fieldnames(self, fieldnames):
+        stat_fieldnames = []
+        for fieldname in fieldnames:
+            if fieldname.startswith(self.stats_field_prefix):
+                stat_fieldnames.append(fieldname)
+        assert len(stat_fieldnames) == len(set(stat_fieldnames))
+        return stat_fieldnames
+
+    def extract_stats_data_vector_from_csv_row(self, row):
+        data_vector = [float(v) for v in (row[k] for k in self.stat_fieldnames)]
+        return data_vector
+
+    def process(self,
+            target_data_filepath,
+            priors_data_filepaths,
+            output_prefix,
+            output_suffix):
+        if output_prefix is None:
+            output_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0]
+        if output_suffix is None:
+            output_suffix = ""
+        else:
+            output_suffix = "." + output_suffix
+        with utility.universal_open(target_data_filepath) as src:
+            target_data_reader = csv.DictReader(
+                    src,
+                    delimiter=self.field_delimiter,
+                    quoting=csv.QUOTE_NONE)
+            for target_row_idx, target_row in enumerate(target_data_reader):
+                if target_row_idx == 0:
+                    self.stat_fieldnames = self.extract_stat_fieldnames(target_data_reader.fieldnames)
+                    self.stat_fieldnames_set = set(self.stat_fieldnames)
+                distanced_scored_params_filepath = "{}.scored-params.{:03d}{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
+                posteriors_filepath = "{}.posterior.{:03d}{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
+                self.run_logger.info("Scoring target data {}".format(target_row_idx+1))
+                target_data_vector = self.extract_stats_data_vector_from_csv_row(target_row)
+                num_samples = self.score_simulated_data(
+                        target_data_vector=target_data_vector,
+                        priors_data_filepaths=priors_data_filepaths,
+                        output_filepath=distanced_scored_params_filepath)
+                self.accept_posteriors(
+                        distanced_scored_params_filepath=distanced_scored_params_filepath,
+                        num_samples=num_samples,
+                        output_filepath=posteriors_filepath)
+
+    def score_simulated_data(self,
+            target_data_vector,
+            priors_data_filepaths,
+            output_filepath):
+        dest = utility.universal_open(output_filepath, "w")
+        all_prior_fieldnames = []
+        all_prior_fieldnames_set = None
+        num_samples = 0
+        for fidx, priors_data_filepath in enumerate(priors_data_filepaths):
+            self.run_logger.info("Reading simulation file {} of {}: '{}'".format(fidx+1, len(priors_data_filepaths), priors_data_filepath))
+            with utility.universal_open(priors_data_filepath) as src:
+                priors_data_reader = csv.DictReader(
+                        src,
+                        delimiter=self.field_delimiter,
+                        quoting=csv.QUOTE_NONE)
+                for row_idx, row in enumerate(priors_data_reader):
+                    if self.logging_frequency and row_idx > 0 and row_idx % self.logging_frequency == 0:
+                        self.run_logger.info("Reading simulation file {} of {}, row {}".format(fidx+1, len(priors_data_filepaths), row_idx+1))
+                    if row_idx == 0:
+                        if fidx == 0:
+                            all_prior_fieldnames = list(priors_data_reader.fieldnames)
+                            all_prior_fieldnames_set = set(all_prior_fieldnames)
+                            current_file_stat_fieldnames = set(self.extract_stat_fieldnames(priors_data_reader.fieldnames))
+                            s1 = current_file_stat_fieldnames - self.stat_fieldnames_set
+                            if s1:
+                                raise ValueError("File '{}': Following summary statistics fields not found in target: {}".format(
+                                    priors_data_filepath, ", ".join(s1)))
+                            s2 =  self.stat_fieldnames_set - current_file_stat_fieldnames
+                            if s2:
+                                raise ValueError("File '{}': Following summary statistics fields given in target but not found here: {}".format(
+                                    priors_data_filepath, ", ".join(s2)))
+                            for fnidx, fn in enumerate(all_prior_fieldnames):
+                                if self.is_output_summary_stats or fn not in self.stat_fieldnames_set:
+                                    dest.write("{}{}".format(fn, self.field_delimiter))
+                            dest.write("{}\n".format(self.distance_score_fieldname))
+                        else:
+                            current_file_fieldnames = set(priors_data_reader.fieldnames)
+                            s1 = current_file_fieldnames - all_prior_fieldnames_set
+                            if s1:
+                                raise ValueError("File '{}': Following fields found, but not found in previous files: {}".format(
+                                    priors_data_filepath, ", ".join(s1)))
+                            s2 =  all_prior_fieldnames_set - current_file_fieldnames
+                            if s2:
+                                raise ValueError("File '{}': Following fields found in previous files, but not found here: {}".format(
+                                    priors_data_filepath, ", ".join(s2)))
+                    prior_data_vector = self.extract_stats_data_vector_from_csv_row(row)
+                    distance = self.euclidean_distance(target_data_vector, prior_data_vector)
+                    for fnidx, fn in enumerate(all_prior_fieldnames):
+                        value = row[fn]
+                        if self.is_output_summary_stats or fn not in self.stat_fieldnames_set:
+                            dest.write("{}{}".format(value, self.field_delimiter))
+                    dest.write("{}\n".format(distance))
+                    num_samples += 1
+        dest.flush()
+        dest.close()
+        return num_samples
+
+    def accept_posteriors(self, distanced_scored_params_filepath, num_samples, output_filepath):
+        dest = utility.universal_open(output_filepath, "w")
+        if self.rejection_criteria_type == "num":
+            num_to_retain = self.rejection_criteria_value
+        elif self.rejection_criteria_type == "proportion":
+            num_to_retain = int(self.rejection_criteria_value * num_samples)
+        accepted_heap = []
+        self.run_logger.info("Accepting/rejecting simulations from the prior ...")
+        with utility.universal_open(distanced_scored_params_filepath) as src:
+            priors_data_reader = csv.DictReader(
+                    src,
+                    delimiter=self.field_delimiter,
+                    quoting=csv.QUOTE_NONE)
+            for row_idx, row in enumerate(priors_data_reader):
+                if self.logging_frequency and row_idx > 0 and row_idx % self.logging_frequency == 0:
+                    self.run_logger.info("Accepting/rejecting: row {}".format(row_idx+1))
+                if row_idx == 0:
+                    dest.write(self.field_delimiter.join(priors_data_reader.fieldnames))
+                    dest.write("\n")
+                distance_score = float(row[self.distance_score_fieldname])
+                row_values = self.field_delimiter.join(row[k] for k in priors_data_reader.fieldnames)
+                if self.rejection_criteria_type == "distance":
+                    if float(distance_score) <= self.rejection_criteria_value:
+                        dest.write(row_values)
+                        dest.write("\n")
+                else:
+                    # heap_score = (1.0/(distance_score + 1))
+                    # heap_score = -1 * (distance_score + 1)
+                    heap_score = -1 * (distance_score)
+                    heap_entry = (heap_score, row_values)
+                    if len(accepted_heap) < num_to_retain:
+                        accepted_heap.append( heap_entry  )
+                        if len(accepted_heap) == num_to_retain:
+                            heapq.heapify(accepted_heap)
+                    else:
+                        heapq.heappushpop(accepted_heap, heap_entry)
+        if self.rejection_criteria_type != "distance":
+            accepted_heap.sort(reverse=True)
+            for hidx, heap_entry in enumerate(accepted_heap):
+                heap_entry = accepted_heap[hidx]
+                dest.write(heap_entry[1])
+                dest.write("\n")
+        dest.flush()
+        dest.close()
 
 def main():
     package_id = sisterbayes.package_id()
@@ -201,11 +385,23 @@ def main():
             default=None,
             metavar='NAME-PREFIX',
             help="Prefix for output filename.")
+    output_options.add_argument('-O', '--output-suffix',
+            action='store',
+            type=str,
+            default=None,
+            metavar='NAME-SUFFIX',
+            help="Suffix for output filename.")
     output_options.add_argument(
             "--output-summary-stats",
             action="store_true",
             help="Include summary stats in the samples from the posterior.")
     run_options = parser.add_argument_group("Run Options")
+    run_options.add_argument(
+            "-L", "--large-file",
+            dest="limit_memory",
+            action="store_true",
+            default=False,
+            help="Use two-pass processing that reduces memory footprint by not requiring entire simulations/priors file(s) to be read into memory at once.")
     run_options.add_argument(
             "-q", "--quiet",
             action="store_true",
@@ -236,7 +432,12 @@ def main():
             log_to_stderr=not args.quiet,
             log_to_file=args.log_to_file,
             )
-    rejector = SisterBayesRejector(
+    run_logger.info("Running: {}".format(package_id))
+    if args.limit_memory:
+        rejector_type = SisterBayesMemoryLimitedRejector
+    else:
+        rejector_type = SisterBayesInMemoryRejector
+    rejector = rejector_type(
             rejection_criteria_type=rejection_criteria_type,
             rejection_criteria_value=rejection_criteria_value,
             run_logger=run_logger,
@@ -244,10 +445,11 @@ def main():
             field_delimiter=args.field_delimiter,
             is_output_summary_stats=args.output_summary_stats,
             )
-    rejector.read_simulated_data(args.simulations_data_filepaths)
-    rejector.write_posterior(
+    rejector.process(
+            target_data_filepath=args.target_data_filepath,
+            priors_data_filepaths=args.simulations_data_filepaths,
             output_prefix=args.output_prefix,
-            target_data_filepath=args.target_data_filepath,)
+            output_suffix=args.output_suffix)
 
 if __name__ == "__main__":
     main()
