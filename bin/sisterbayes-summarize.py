@@ -205,8 +205,12 @@ class SisterBayesSummarizer(object):
                     row_results["sd"] = summary["sd"]
                     row_results["min"] = summary["range"][0]
                     row_results["max"] = summary["range"][1]
-                    row_results["hpd5"] = summary["hpd95"][0]
-                    row_results["hpd95"] = summary["hpd95"][1]
+                    try:
+                        row_results["hpd5"] = summary["hpd95"][0]
+                        row_results["hpd95"] = summary["hpd95"][1]
+                    except TypeError:
+                        row_results["hpd5"] = "NA"
+                        row_results["hpd95"] = "NA"
                     try:
                         row_results["quant5"] = summary["quant_5_95"][0]
                         row_results["quant95"] = summary["quant_5_95"][1]
