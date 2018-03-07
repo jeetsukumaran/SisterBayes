@@ -134,6 +134,7 @@ class Fsc2DataExtractionTestCase(unittest.TestCase):
                 is_calculate_single_population_sfs=True,
                 is_calculate_joint_population_sfs=True,
                 is_unfolded_site_frequency_spectrum=False,
+                is_infinite_sites_model=True,
                 )
 
     def test_deme_site_frequencies(self):
@@ -181,6 +182,24 @@ class Fsc2DataExtractionTestCase(unittest.TestCase):
             self.assertEqual(len(expected_values), len(data))
             for v1, v2 in zip(expected_values, data.values()):
                 self.assertEqual(v1, v2)
+
+class Fsc2RawDataExtractionTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.fsc = fsc2.Fsc2Handler(
+                name="test-two",
+                fsc2_path="fsc25",
+                working_directory=FSC_DATA_DIR,
+                is_calculate_single_population_sfs=True,
+                is_calculate_joint_population_sfs=True,
+                is_unfolded_site_frequency_spectrum=False,
+                is_infinite_sites_model=True,
+                )
+
+    def test_alignment_extraction(self):
+        src_path = os.path.join(FSC_DATA_DIR, "test-two", "test-two_1_1.arp")
+        self.fsc._harvest_raw_results("out")
+
 
 if __name__ == "__main__":
     unittest.main()

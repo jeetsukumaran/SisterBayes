@@ -69,6 +69,8 @@ class SimulationWorker(multiprocessing.Process):
             is_include_model_id_field,
             supplemental_labels,
             debug_mode,
+            is_store_raw_data,
+            raw_data_output_prefix,
             ):
         multiprocessing.Process.__init__(self, name=name)
         self.fsc2_handler = fsc2.Fsc2Handler(
@@ -94,6 +96,8 @@ class SimulationWorker(multiprocessing.Process):
         self.kill_received = False
         self.num_tasks_received = 0
         self.num_tasks_completed = 0
+        self.is_store_raw_data = is_store_raw_data
+        self.raw_data_output_prefix = raw_data_output_prefix
 
     def send_worker_message(self, msg, level):
         if self.run_logger is None:
@@ -138,7 +142,7 @@ class SimulationWorker(multiprocessing.Process):
             #     task_name=rep_idx))
             # rng = random.Random(random_seed)
             try:
-                result = self.simulate()
+                result = self.simulate(rep_idx)
             except (KeyboardInterrupt, Exception) as e:
                 # traceback.print_exc()
                 e.worker_name = self.name
@@ -153,7 +157,7 @@ class SimulationWorker(multiprocessing.Process):
         if self.kill_received:
             self.send_worker_warning("Terminating in response to kill request")
 
-    def simulate(self):
+    def simulate(self, rep_idx):
         results_d = collections.OrderedDict()
         if self.is_include_model_id_field:
             results_d["model.id"] = None
@@ -163,7 +167,7 @@ class SimulationWorker(multiprocessing.Process):
         params, fsc2_run_configurations = self.model.sample_parameter_values_from_prior(rng=self.rng)
         results_d.update(params)
         for lineage_pair_idx, lineage_pair in enumerate(self.model.lineage_pairs):
-            for locus_definition in lineage_pair.locus_definitions:
+            for locus_definition_idx, locus_definition in enumerate(lineage_pair.locus_definitions):
                 self.fsc2_handler.run(
                         field_name_prefix="{}.{}.{}".format(
                                 self.stat_label_prefix,
@@ -172,6 +176,10 @@ class SimulationWorker(multiprocessing.Process):
                         fsc2_config_d=fsc2_run_configurations[locus_definition],
                         random_seed=self.rng.randint(1, 1E6),
                         results_d=results_d,
+                        is_store_raw_data=self.is_store_raw_data,
+                        raw_data_output_prefix="{}.{:04d}".format(self.raw_data_output_prefix, rep_idx+1),
+                        lineage_pair_label=lineage_pair.label,
+                        locus_label=locus_definition.locus_label,
                         )
         if self.is_include_model_id_field:
             results_d["model.id"] = results_d["param.divTimeModel"]
@@ -352,6 +360,8 @@ class SisterBayesSimulator(object):
             dest=None,
             results_store=None,
             is_write_header=True,
+            is_store_raw_data=False,
+            raw_data_output_prefix=None,
             ):
         # load up queue
         self.run_logger.info("Priming task queue")
@@ -392,6 +402,8 @@ class SisterBayesSimulator(object):
                     is_include_model_id_field=self.is_include_model_id_field,
                     supplemental_labels=self.supplemental_labels,
                     debug_mode=self.is_debug_mode,
+                    is_store_raw_data=is_store_raw_data,
+                    raw_data_output_prefix=raw_data_output_prefix,
                     )
             worker.start()
             workers.append(worker)

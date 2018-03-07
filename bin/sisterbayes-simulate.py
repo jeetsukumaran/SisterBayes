@@ -80,6 +80,10 @@ def main():
             action="store_true",
             default=False,
             help="Do not writer header row.")
+    output_options.add_argument( "--raw-data",
+            action="store_true",
+            default=False,
+            help="Store raw data (alignments and trees).")
 
     run_options = parser.add_argument_group("Run Options")
     run_options.add_argument("-n", "--num-reps",
@@ -198,7 +202,9 @@ def main():
                         nreps=args.num_reps,
                         dest=dest,
                         results_store=None,
-                        is_write_header=is_write_header)
+                        is_write_header=is_write_header,
+                        is_store_raw_data=args.raw_data,
+                        raw_data_output_prefix=config_d["output_prefix"] + ".data")
             except Exception as e:
                 sys.stderr.write("Traceback (most recent call last):\n  {}{}\n".format(
                     "  ".join(traceback.format_tb(sys.exc_info()[2])),

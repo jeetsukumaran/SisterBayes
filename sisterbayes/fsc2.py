@@ -29,6 +29,7 @@
 ##
 ##############################################################################
 
+import dendropy
 import subprocess
 import collections
 import os
@@ -96,6 +97,7 @@ class Fsc2Handler(object):
         self._results_dirpath = None
         self._deme0_site_frequency_filepath = None
         self._deme1_site_frequency_filepath = None
+        self._arlequin_filepath = None
         self._joint_site_frequency_filepath = None
 
     def _get_parameter_filepath(self):
@@ -128,6 +130,12 @@ class Fsc2Handler(object):
             self._joint_site_frequency_filepath = os.path.join(self.results_dirpath, "{}_joint{}pop1_0.obs".format(self.name, self.sfs_file_prefix))
         return self._joint_site_frequency_filepath
     joint_site_frequency_filepath = property(_get_result_joint_site_frequency_filepath)
+
+    def _get_result_arlequin_filepath(self):
+        if self._arlequin_filepath is None:
+            self._arlequin_filepath = os.path.join(self.results_dirpath, "{}_1_1.arp".format(self.name))
+        return self._arlequin_filepath
+    arlequin_filepath = property(_get_result_arlequin_filepath)
 
     def _new_execution_reset(self):
         self._current_execution_id = None
@@ -217,6 +225,40 @@ class Fsc2Handler(object):
                     results_d=results_d)
         return results_d
 
+    def _harvest_raw_results(self,
+            output_prefix,
+            lineage_pair_label,
+            locus_label):
+        data_dicts = []
+        with utility.universal_open(self.arlequin_filepath) as src:
+            idx = 0
+            in_alignment = False
+            for row in src:
+                row = row[:-1] # chomp terminating \n
+                if in_alignment:
+                    if row == "":
+                        if len(data_dicts) == 2:
+                            break
+                        else:
+                            in_alignment = False
+                    else:
+                        try:
+                            x1, x2, data = row.split("\t")
+                            data = data.replace("0", "A").replace("1", "C").replace("2", "G").replace("3", "T")
+                            data_dicts[-1]["T"+x1] = data
+                        except IndexError:
+                            raise
+                elif "SampleData=" in row:
+                    in_alignment = True
+                    data_dicts.append(collections.OrderedDict())
+        assert len(data_dicts) == 2
+        for idx, data_dict in enumerate(data_dicts):
+            dna = dendropy.DnaCharacterMatrix.from_dict(data_dict)
+            dna.write(
+                    path="{}.{}.{}.{}.fasta".format(output_prefix, lineage_pair_label, idx+1, locus_label),
+                    schema="fasta",
+                    wrap=False)
+
     def _post_execution_cleanup(self):
         pass
 
@@ -224,7 +266,12 @@ class Fsc2Handler(object):
             field_name_prefix,
             fsc2_config_d,
             random_seed,
-            results_d,):
+            results_d,
+            is_store_raw_data=False,
+            raw_data_output_prefix=None,
+            lineage_pair_label=None,
+            locus_label=None,
+            ):
         self._setup_for_execution()
         cmds = []
         cmds.append(self.fsc2_path)
@@ -236,7 +283,8 @@ class Fsc2Handler(object):
             cmds.append("-I")                    # -I  --inf               : generates DNA mutations according to an infinite site (IS) mutation model
         cmds.append("-S")                       # -S  --allsites          : output the whole DNA sequence, incl. monomorphic sites
         cmds.append("-s0")                      # -s  --dnatosnp 2000     : output DNA as SNP data, and specify maximum no. of SNPs to output (use 0 to output all SNPs). (required to calculate SFS)
-        cmds.append("-x")                       # -x  --noarloutput       : does not generate Arlequin output
+        if not is_store_raw_data:
+            cmds.append("-x")                       # -x  --noarloutput       : does not generate Arlequin output
         fsc2_config_d["fsc2_command"] = " ".join(cmds)
         self._generate_parameter_file(fsc2_config_d)
         p = subprocess.Popen(cmds,
@@ -254,5 +302,11 @@ class Fsc2Handler(object):
         self._harvest_run_results(
                 field_name_prefix=field_name_prefix,
                 results_d=results_d)
+        if is_store_raw_data:
+            self._harvest_raw_results(
+                    output_prefix=raw_data_output_prefix,
+                    lineage_pair_label=lineage_pair_label,
+                    locus_label=locus_label,
+                    )
         self._post_execution_cleanup()
 
