@@ -206,54 +206,54 @@ def parse_legacy_configuration(filepath, config_d=None):
     config_d["params"] = {}
     config_d["locus_info"] = []
     section = "preamble"
-    src = universal_open(filepath)
-    for row_idx, row in enumerate(src):
-        row = row.strip()
-        if not row:
-            continue
-        comment_start_idx = row.find("#")
-        if section == "sample-table" and comment_start_idx > 0:
-            raise ValueError("Configuration file '{}', row {}: sample table section cannot contain mid-row comment".format(
-                filepath,
-                row_idx+1))
-        if comment_start_idx > -1:
-            row = row[0:comment_start_idx]
-        row = row.strip()
-        if not row:
-            continue
-        if section == "preamble":
-            if sample_table_begin_pattern.match(row):
-                section = "sample-table"
+    with universal_open(filepath) as src:
+        for row_idx, row in enumerate(src):
+            row = row.strip()
+            if not row:
                 continue
-            row_parts = row.split("=")
-            if len(row_parts) != 2:
+            comment_start_idx = row.find("#")
+            if section == "sample-table" and comment_start_idx > 0:
                 raise ValueError("Configuration file '{}', row {}: sample table section cannot contain mid-row comment".format(
                     filepath,
                     row_idx+1))
-            key = row_parts[0].strip()
-            case_normalized_key = key.lower()
-            if case_normalized_key not in recognized_preamble_keys:
-                raise ValueError("Configuration file '{}', row {}: unrecognized preamble key '{}'".format(
-                    filepath,
-                    row_idx+1,
-                    key
-                    ))
-            config_d["params"][key] = recognized_preamble_keys[case_normalized_key](row_parts[1].strip())
-        else:
-            if sample_table_end_pattern.match(row):
+            if comment_start_idx > -1:
+                row = row[0:comment_start_idx]
+            row = row.strip()
+            if not row:
                 continue
-            cols = sample_table_splitter.split(row)
-            locus_info = {}
-            if len(cols) != len(sample_table_keys):
-                raise ValueError("Configuration file '{}', row {}: expecting {} columns but only found {}".format(
-                    filepath,
-                    row_idx+1,
-                    len(sample_table_keys),
-                    len(cols),
-                    ))
-            for (key, val_type), val in zip(sample_table_keys, cols):
-                locus_info[key] = val_type(val)
-            config_d["locus_info"].append(locus_info)
+            if section == "preamble":
+                if sample_table_begin_pattern.match(row):
+                    section = "sample-table"
+                    continue
+                row_parts = row.split("=")
+                if len(row_parts) != 2:
+                    raise ValueError("Configuration file '{}', row {}: sample table section cannot contain mid-row comment".format(
+                        filepath,
+                        row_idx+1))
+                key = row_parts[0].strip()
+                case_normalized_key = key.lower()
+                if case_normalized_key not in recognized_preamble_keys:
+                    raise ValueError("Configuration file '{}', row {}: unrecognized preamble key '{}'".format(
+                        filepath,
+                        row_idx+1,
+                        key
+                        ))
+                config_d["params"][key] = recognized_preamble_keys[case_normalized_key](row_parts[1].strip())
+            else:
+                if sample_table_end_pattern.match(row):
+                    continue
+                cols = sample_table_splitter.split(row)
+                locus_info = {}
+                if len(cols) != len(sample_table_keys):
+                    raise ValueError("Configuration file '{}', row {}: expecting {} columns but only found {}".format(
+                        filepath,
+                        row_idx+1,
+                        len(sample_table_keys),
+                        len(cols),
+                        ))
+                for (key, val_type), val in zip(sample_table_keys, cols):
+                    locus_info[key] = val_type(val)
+                config_d["locus_info"].append(locus_info)
     return config_d
 
 ##############################################################################
