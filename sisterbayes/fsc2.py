@@ -225,10 +225,7 @@ class Fsc2Handler(object):
                     results_d=results_d)
         return results_d
 
-    def _harvest_raw_results(self,
-            output_prefix,
-            lineage_pair_label,
-            locus_label):
+    def _parse_raw_results(self):
         data_dicts = []
         with utility.universal_open(self.arlequin_filepath) as src:
             idx = 0
@@ -252,8 +249,13 @@ class Fsc2Handler(object):
                     in_alignment = True
                     data_dicts.append(collections.OrderedDict())
         assert len(data_dicts) == 2
-        for idx, data_dict in enumerate(data_dicts):
-            dna = dendropy.DnaCharacterMatrix.from_dict(data_dict)
+        return [dendropy.DnaCharacterMatrix.from_dict(data_dict) for data_dict in data_dicts]
+
+    def _harvest_raw_results(self,
+            output_prefix,
+            lineage_pair_label,
+            locus_label):
+        for idx, dna in enumerate(self._parse_raw_results()):
             dna.write(
                     path="{}.{}.{}.{}.fasta".format(output_prefix, lineage_pair_label, idx+1, locus_label),
                     schema="fasta",
