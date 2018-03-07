@@ -97,8 +97,9 @@ class Fsc2Handler(object):
         self._results_dirpath = None
         self._deme0_site_frequency_filepath = None
         self._deme1_site_frequency_filepath = None
-        self._arlequin_filepath = None
         self._joint_site_frequency_filepath = None
+        self._arlequin_filepath = None
+        self.is_compose_raw_data_output_paths_de_novo = False
 
     def _get_parameter_filepath(self):
         if self._parameter_filepath is None:
@@ -226,7 +227,7 @@ class Fsc2Handler(object):
         return results_d
 
     def _parse_raw_results(self):
-        data_dicts = []
+        data_dict = collections.OrderedDict()
         with utility.universal_open(self.arlequin_filepath) as src:
             idx = 0
             in_alignment = False
@@ -234,7 +235,7 @@ class Fsc2Handler(object):
                 row = row[:-1] # chomp terminating \n
                 if in_alignment:
                     if row == "":
-                        if len(data_dicts) == 2:
+                        if idx == 2:
                             break
                         else:
                             in_alignment = False
@@ -242,24 +243,28 @@ class Fsc2Handler(object):
                         try:
                             x1, x2, data = row.split("\t")
                             data = data.replace("0", "A").replace("1", "C").replace("2", "G").replace("3", "T")
-                            data_dicts[-1]["T"+x1] = data
+                            data_dict["T.{:02d}.{:>03}".format(idx, x1)] = data
                         except IndexError:
                             raise
                 elif "SampleData=" in row:
+                    idx += 1
                     in_alignment = True
-                    data_dicts.append(collections.OrderedDict())
-        assert len(data_dicts) == 2
-        return [dendropy.DnaCharacterMatrix.from_dict(data_dict) for data_dict in data_dicts]
+        return dendropy.DnaCharacterMatrix.from_dict(data_dict)
 
     def _harvest_raw_results(self,
             output_prefix,
-            lineage_pair_label,
-            locus_label):
-        for idx, dna in enumerate(self._parse_raw_results()):
-            dna.write(
-                    path="{}.{}.{}.{}.fasta".format(output_prefix, lineage_pair_label, idx+1, locus_label),
-                    schema="fasta",
-                    wrap=False)
+            lineage_pair,
+            locus_definition,
+            ):
+        dna = self._parse_raw_results()
+        if self.is_compose_raw_data_output_paths_de_novo:
+            path = "{}.{}.{}.fasta".format(output_prefix, lineage_pair.label, locus_definition.locus_label)
+        else:
+            path = "{}.{}.fasta".format(output_prefix, os.path.splitext(os.path.basename(locus_definition.alignment_filepath))[0])
+        dna.write(
+                path=path,
+                schema="fasta",
+                wrap=False)
 
     def _post_execution_cleanup(self):
         pass
@@ -271,8 +276,8 @@ class Fsc2Handler(object):
             results_d,
             is_store_raw_data=False,
             raw_data_output_prefix=None,
-            lineage_pair_label=None,
-            locus_label=None,
+            lineage_pair=None,
+            locus_definition=None,
             ):
         self._setup_for_execution()
         cmds = []
@@ -307,8 +312,8 @@ class Fsc2Handler(object):
         if is_store_raw_data:
             self._harvest_raw_results(
                     output_prefix=raw_data_output_prefix,
-                    lineage_pair_label=lineage_pair_label,
-                    locus_label=locus_label,
+                    lineage_pair=lineage_pair,
+                    locus_definition=locus_definition,
                     )
         self._post_execution_cleanup()
 

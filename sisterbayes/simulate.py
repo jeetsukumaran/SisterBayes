@@ -178,8 +178,8 @@ class SimulationWorker(multiprocessing.Process):
                         results_d=results_d,
                         is_store_raw_data=self.is_store_raw_data,
                         raw_data_output_prefix="{}.{:04d}".format(self.raw_data_output_prefix, rep_idx+1),
-                        lineage_pair_label=lineage_pair.label,
-                        locus_label=locus_definition.locus_label,
+                        lineage_pair=lineage_pair, # only needed for raw data output path composition
+                        locus_definition=locus_definition, # only needed for raw data output path composition
                         )
         if self.is_include_model_id_field:
             results_d["model.id"] = results_d["param.divTimeModel"]

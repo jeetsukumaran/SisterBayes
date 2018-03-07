@@ -204,7 +204,7 @@ def main():
                         results_store=None,
                         is_write_header=is_write_header,
                         is_store_raw_data=args.raw_data,
-                        raw_data_output_prefix=config_d["output_prefix"] + ".data")
+                        raw_data_output_prefix=config_d["output_prefix"])
             except Exception as e:
                 sys.stderr.write("Traceback (most recent call last):\n  {}{}\n".format(
                     "  ".join(traceback.format_tb(sys.exc_info()[2])),

@@ -198,24 +198,23 @@ class Fsc2RawDataExtractionTestCase(unittest.TestCase):
                 )
 
     def test_alignment_extraction(self):
-        dna_sets = self.fsc._parse_raw_results()
-        self.assertEqual(len(dna_sets), 2)
-        for idx, dna in enumerate(dna_sets):
-            expected_src_path = os.path.join(FSC_DATA_DIR, "test-two", "test-two.{:02d}.fasta".format(idx+1))
-            ntax = len(dna.taxon_namespace)
-            expected = dendropy.DnaCharacterMatrix.get(
-                    path=expected_src_path,
-                    schema="fasta",
-                    taxon_namespace=dna.taxon_namespace)
-            self.assertEqual(ntax, len(dna.taxon_namespace))
-            self.assertEqual(len(dna), len(expected))
-            for t in expected.taxon_namespace:
-                obs_seq = dna[t]
-                exp_seq = expected[t]
-                self.assertEqual(len(obs_seq), len(exp_seq))
-                for c1, c2 in zip(obs_seq, exp_seq):
-                    self.assertIs(c1, c2)
-                    self.assertEqual(c1, c2)
+        dna = self.fsc._parse_raw_results()
+        # print(dna.as_string("fasta"))
+        expected_src_path = os.path.join(FSC_DATA_DIR, "test-two", "test-two.fasta")
+        ntax = len(dna.taxon_namespace)
+        expected = dendropy.DnaCharacterMatrix.get(
+                path=expected_src_path,
+                schema="fasta",
+                taxon_namespace=dna.taxon_namespace)
+        self.assertEqual(ntax, len(dna.taxon_namespace))
+        self.assertEqual(len(dna), len(expected))
+        for t in expected.taxon_namespace:
+            obs_seq = dna[t]
+            exp_seq = expected[t]
+            self.assertEqual(len(obs_seq), len(exp_seq))
+            for c1, c2 in zip(obs_seq, exp_seq):
+                self.assertIs(c1, c2)
+                self.assertEqual(c1, c2)
 
 if __name__ == "__main__":
     unittest.main()
