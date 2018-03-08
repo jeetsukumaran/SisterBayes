@@ -33,6 +33,8 @@ import dendropy
 import subprocess
 import collections
 import os
+import itertools
+import random
 from sisterbayes import utility
 
 FSC2_CONFIG_TEMPLATE = """\
@@ -228,6 +230,8 @@ class Fsc2Handler(object):
 
     def _parse_raw_results(self):
         data_dict = collections.OrderedDict()
+        decodings = list(itertools.permutations("ACGT", 4))
+        column_decodings = {}
         with utility.universal_open(self.arlequin_filepath) as src:
             idx = 0
             in_alignment = False
@@ -241,9 +245,16 @@ class Fsc2Handler(object):
                             in_alignment = False
                     else:
                         try:
-                            x1, x2, data = row.split("\t")
-                            data = data.replace("0", "A").replace("1", "C").replace("2", "G").replace("3", "T")
-                            data_dict["T.{:02d}.{:>03}".format(idx, x1)] = data
+                            x1, x2, encoded_data = row.split("\t")
+                            decoded_data = []
+                            for col_idx, ch in enumerate(encoded_data):
+                                try:
+                                    decoding_lookup = column_decodings[col_idx]
+                                except KeyError:
+                                    decoding_lookup = random.choice(decodings)
+                                    column_decodings[col_idx] = decoding_lookup
+                                decoded_data.append( decoding_lookup[ int(ch) ] )
+                            data_dict["T.{:02d}.{:>03}".format(idx, x1)] = "".join(decoded_data)
                         except IndexError:
                             raise
                 elif "SampleData=" in row:

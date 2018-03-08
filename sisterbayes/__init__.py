@@ -38,7 +38,7 @@ import site
 ## PACKAGE METADATA
 import collections
 __project__ = "SisterBayes"
-__version__ = "2018.03.08"
+__version__ = "2018.03.09"
 __author__ = "Jeet Sukumaran"
 __copyright__ = "Copyright 2017-2018 Jeet Sukumaran"
 
