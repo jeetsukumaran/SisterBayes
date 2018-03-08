@@ -5,6 +5,7 @@ import re
 import unittest
 import time
 import collections
+import random
 import dendropy
 from sisterbayes import fsc2
 from sisterbayes.utility import StringIO
@@ -195,6 +196,7 @@ class Fsc2RawDataExtractionTestCase(unittest.TestCase):
                 is_calculate_joint_population_sfs=True,
                 is_unfolded_site_frequency_spectrum=False,
                 is_infinite_sites_model=True,
+                rng=random.Random(2178),
                 )
 
     def test_alignment_extraction(self):

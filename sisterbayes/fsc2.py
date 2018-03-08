@@ -77,6 +77,7 @@ class Fsc2Handler(object):
             is_calculate_joint_population_sfs,
             is_unfolded_site_frequency_spectrum,
             is_infinite_sites_model,
+            rng=None
             ):
         self.name = name
         self.fsc2_path = fsc2_path
@@ -102,6 +103,10 @@ class Fsc2Handler(object):
         self._joint_site_frequency_filepath = None
         self._arlequin_filepath = None
         self.is_compose_raw_data_output_paths_de_novo = False
+        if rng is None:
+            self.rng = random.Random()
+        else:
+            self.rng = rng
 
     def _get_parameter_filepath(self):
         if self._parameter_filepath is None:
@@ -251,7 +256,7 @@ class Fsc2Handler(object):
                                 try:
                                     decoding_lookup = column_decodings[col_idx]
                                 except KeyError:
-                                    decoding_lookup = random.choice(decodings)
+                                    decoding_lookup = self.rng.choice(decodings)
                                     column_decodings[col_idx] = decoding_lookup
                                 decoded_data.append( decoding_lookup[ int(ch) ] )
                             data_dict["T.{:02d}.{:>03}".format(idx, x1)] = "".join(decoded_data)
