@@ -487,40 +487,59 @@ class SisterBayesModel(object):
             params["param.theta.{}.{}".format(lineage_pair.label, _ANCESTOR_DEME_LABEL)] = deme2_theta
 
             for locus_id, locus_definition in enumerate(lineage_pair.locus_definitions):
-                # Fastsimecoal2 separates pop size and mutation rate, but
-                # the msBayes/PyMsBayes model does not separate the two,
-                # using theta.
                 #
-                # We could just reparameterize the PyMsBayes model here,
-                # sampling over N and mu independently. But say we want to
-                # stick to the theta parameterization.
+                #   Fastsimecoal2 separates pop size and mutation rate, but
+                #   the msBayes/PyMsBayes model does not separate the two,
+                #   using theta.
                 #
-                # We could simply scale everything by mutation rate --
-                # i.e., population size and div time specified in units of
-                # N * mu, and in the sequence generation assume a base
-                # mutation rate of 1.0. Problem with this is that
-                # Fastsimcoal coerces the population size to an integer,
-                # and so anything less than 1 becomes zero. So we multiply
-                # the population size time by a large number and adjust
-                # this in the actual mutation rate so N mu remains the
-                # same:
+                #   We could just reparameterize the PyMsBayes model here,
+                #   sampling over N and mu independently. But say we want to
+                #   stick to the theta parameterization.
                 #
-                #   theta = 4 N mu = 4 * (N * C) * (mu/C)
+                #   ## Scheme 1
                 #
-                # Of course, VERY important to also apply the adjustment
-                # factor to the divergence time, or, indeed, any other time
-                # variable!
+                #   We could simply scale everything by mutation rate --
+                #   i.e., population size and div time specified in units of
+                #   N * mu, and in the sequence generation assume a base
+                #   mutation rate of 1.0. Problem with this is that
+                #   Fastsimcoal coerces the population size to an integer,
+                #   and so anything less than 1 becomes zero. So we multiply
+                #   the population size time by a large number and adjust
+                #   this in the actual mutation rate so N mu remains the
+                #   same:
+                #
+                #     theta = 4 N mu = 4 * (N * C) * (mu/C)
+                #
+                #   Of course, VERY important to also apply the adjustment
+                #   factor to the divergence time, or, indeed, any other time
+                #   variable!
+                #
+                #   In detail:
+                #   - We "know" theta (because that is how we have parameterized our model and we are sampling theta from the prior)
+                #   - We do not know N and mu -- these are part of theta:
+                #         theta = 4 N mu
+                #   - For fastsimcoal, we need to know N and mu separately
+                #   - We scale everything to a real mutation rate, so *our* mu is an arbitrary 1.0
+                #   - For the fastsimcoal population size, we divide theta by (4 * mu) = 4 to convert
+                #         fsc_N = (theta / (4 * 1.0) * C
+                #     where C is the adjustment factor so that fsc_N > 1.
+                #   - Our tau is expressed in the expected number of substitutions per site =
+                #         = mutation rate (expected number of substitutions per site) * abs_time
+                #   - fastsimcoal tau is expressed in generations, so we divide our tau by mu to convert
+                #     - fsc_tau = (tau / 1.0) * C
+                #
                 adjustment_hack = 1E8
-                #
+                mu_factor = (locus_definition.mutation_rate_factor * locus_definition.ploidy_factor)
+
                 fsc2_config_d = {
-                    "d0_population_size": deme0_theta/4.0 * locus_definition.ploidy_factor * adjustment_hack,
-                    "d1_population_size": deme1_theta/4.0 * locus_definition.ploidy_factor * adjustment_hack,
+                    "d0_population_size": (deme0_theta/4.0 * mu_factor) * adjustment_hack,
+                    "d1_population_size": (deme1_theta/4.0 * mu_factor) * adjustment_hack,
                     "d0_sample_size": locus_definition.num_genes_deme0,
                     "d1_sample_size": locus_definition.num_genes_deme1,
                     "div_time": div_time * adjustment_hack, # ditto
                     "num_sites": locus_definition.num_sites,
                     "recombination_rate": 0,
-                    "mutation_rate": locus_definition.mutation_rate_factor / adjustment_hack,
+                    "mutation_rate":  mu_factor / adjustment_hack,
                     "ti_proportional_bias": (1.0 * locus_definition.ti_tv_rate_ratio)/3.0,
                     }
                 fsc2_run_configurations[locus_definition] = fsc2_config_d
