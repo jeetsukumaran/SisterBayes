@@ -102,6 +102,8 @@ class Fsc2Handler(object):
         self._deme1_site_frequency_filepath = None
         self._joint_site_frequency_filepath = None
         self._arlequin_filepath = None
+        self._mut_trees_filepath = None
+        self._true_trees_filepath = None
         self.is_compose_raw_data_output_paths_de_novo = False
         if rng is None:
             self.rng = random.Random()
@@ -144,6 +146,18 @@ class Fsc2Handler(object):
             self._arlequin_filepath = os.path.join(self.results_dirpath, "{}_1_1.arp".format(self.name))
         return self._arlequin_filepath
     arlequin_filepath = property(_get_result_arlequin_filepath)
+
+    def _get_result_mut_trees_filepath(self):
+        if self._mut_trees_filepath is None:
+            self._mut_trees_filepath = os.path.join(self.results_dirpath, "{}_1_mut_trees.trees".format(self.name))
+        return self._mut_trees_filepath
+    mut_trees_filepath = property(_get_result_mut_trees_filepath)
+
+    def _get_result_true_trees_filepath(self):
+        if self._true_trees_filepath is None:
+            self._true_trees_filepath = os.path.join(self.results_dirpath, "{}_1_true_trees.trees".format(self.name))
+        return self._true_trees_filepath
+    true_trees_filepath = property(_get_result_true_trees_filepath)
 
     def _new_execution_reset(self):
         self._current_execution_id = None
@@ -233,7 +247,15 @@ class Fsc2Handler(object):
                     results_d=results_d)
         return results_d
 
-    def _parse_raw_results(self):
+    def _parse_raw_results_true_trees(self):
+        tree = dendropy.Tree.get(path=self.true_trees_filepath, schema="nexus")
+        return tree
+
+    def _parse_raw_results_mut_trees(self):
+        tree = dendropy.Tree.get(path=self.mut_trees_filepath, schema="nexus")
+        return tree
+
+    def _parse_raw_results_dna(self):
         data_dict = collections.OrderedDict()
         decodings = list(itertools.permutations("ACGT", 4))
         column_decodings = {}
@@ -267,20 +289,28 @@ class Fsc2Handler(object):
                     in_alignment = True
         return dendropy.DnaCharacterMatrix.from_dict(data_dict)
 
+    def _parse_raw_results(self):
+        dna = self._parse_raw_results_dna()
+        true_tree = self._parse_raw_results_true_trees()
+        mut_tree = self._parse_raw_results_mut_trees()
+        return dna, true_tree, mut_tree
+
     def _harvest_raw_results(self,
             output_prefix,
             lineage_pair,
             locus_definition,
             ):
-        dna = self._parse_raw_results()
+        dna, true_tree, mut_tree = self._parse_raw_results()
         if self.is_compose_raw_data_output_paths_de_novo:
-            path = "{}.{}.{}.fasta".format(output_prefix, lineage_pair.label, locus_definition.locus_label)
+            path_stem = "{}.{}.{}".format(output_prefix, lineage_pair.label, locus_definition.locus_label)
         else:
-            path = "{}.{}.fasta".format(output_prefix, os.path.splitext(os.path.basename(locus_definition.alignment_filepath))[0])
+            path_stem = "{}.{}".format(output_prefix, os.path.splitext(os.path.basename(locus_definition.alignment_filepath))[0])
         dna.write(
-                path=path,
+                path=path_stem + ".fasta",
                 schema="fasta",
                 wrap=False)
+        true_tree.write(path=path_stem + ".tree.true.nex", schema="nexus")
+        mut_tree.write(path=path_stem + ".tree.mut.nex", schema="nexus")
 
     def _post_execution_cleanup(self):
         pass
@@ -308,6 +338,8 @@ class Fsc2Handler(object):
         cmds.append("-s0")                      # -s  --dnatosnp 2000     : output DNA as SNP data, and specify maximum no. of SNPs to output (use 0 to output all SNPs). (required to calculate SFS)
         if not is_store_raw_data:
             cmds.append("-x")                       # -x  --noarloutput       : does not generate Arlequin output
+        else:
+            cmds.append("-T")
         fsc2_config_d["fsc2_command"] = " ".join(cmds)
         self._generate_parameter_file(fsc2_config_d)
         p = subprocess.Popen(cmds,
