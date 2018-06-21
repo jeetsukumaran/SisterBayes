@@ -249,10 +249,12 @@ class Fsc2Handler(object):
 
     def _parse_raw_results_true_trees(self):
         tree = dendropy.Tree.get(path=self.true_trees_filepath, schema="nexus")
+        self._postprocess_raw_tree_taxa(tree)
         return tree
 
     def _parse_raw_results_mut_trees(self):
         tree = dendropy.Tree.get(path=self.mut_trees_filepath, schema="nexus")
+        self._postprocess_raw_tree_taxa(tree)
         return tree
 
     def _parse_raw_results_dna(self):
@@ -281,13 +283,26 @@ class Fsc2Handler(object):
                                     decoding_lookup = self.rng.choice(decodings)
                                     column_decodings[col_idx] = decoding_lookup
                                 decoded_data.append( decoding_lookup[ int(ch) ] )
-                            data_dict["T.{:02d}.{:>03}".format(idx, x1)] = "".join(decoded_data)
+                            taxon_label = self._compose_raw_data_taxon_label(
+                                    population_id=idx,
+                                    individual_id=x1)
+                            data_dict[taxon_label] = "".join(decoded_data)
                         except IndexError:
                             raise
                 elif "SampleData=" in row:
                     idx += 1
                     in_alignment = True
         return dendropy.DnaCharacterMatrix.from_dict(data_dict)
+
+    def _postprocess_raw_tree_taxa(self, tree):
+        for taxon in tree.taxon_namespace:
+            individual_id, population_id = taxon.label.split(".")
+            taxon.label = self._compose_raw_data_taxon_label(
+                    population_id=int(population_id),
+                    individual_id=int(individual_id))
+
+    def _compose_raw_data_taxon_label(self, population_id, individual_id):
+        return "T.{:02d}.{:>03}".format(population_id, individual_id)
 
     def _parse_raw_results(self):
         dna = self._parse_raw_results_dna()
