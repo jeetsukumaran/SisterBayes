@@ -135,7 +135,7 @@ def main():
     fsc2_options = parser.add_argument_group("FastSimCoal2 Options")
     fsc2_options.add_argument("--fsc2-path",
             metavar="FSC2-PATH",
-            default="fsc25",
+            default=os.environ.get("SISTERBAYES_FSC2_PATH", "fsc"),
             help="Path to FastsimCoal2 application (default: %(default)s).")
 
     args = parser.parse_args()

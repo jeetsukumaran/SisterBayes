@@ -247,13 +247,22 @@ class Fsc2Handler(object):
                     results_d=results_d)
         return results_d
 
-    def _parse_raw_results_true_trees(self):
+    def _parse_raw_results_true_trees(self, lineage_pair, locus_definition):
+        # branch lengths in units of generations
         tree = dendropy.Tree.get(path=self.true_trees_filepath, schema="nexus")
         self._postprocess_raw_tree_taxa(tree)
         return tree
 
-    def _parse_raw_results_mut_trees(self):
+    def _parse_raw_results_mut_trees(self, lineage_pair, locus_definition):
+        # branch lengths in (absolute) number of mutations
         tree = dendropy.Tree.get(path=self.mut_trees_filepath, schema="nexus")
+        # convert branch lengths to per site number of mutations
+        for nd in tree:
+            if nd.edge.length is None:
+                nd.edge.length = 0.0
+            else:
+                nd.edge.length = float(nd.edge.length)
+            nd.edge.length = nd.edge.length / locus_definition.num_sites
         self._postprocess_raw_tree_taxa(tree)
         return tree
 
@@ -304,10 +313,10 @@ class Fsc2Handler(object):
     def _compose_raw_data_taxon_label(self, population_id, individual_id):
         return "T.{:02d}.{:>03}".format(population_id, individual_id)
 
-    def _parse_raw_results(self):
+    def _parse_raw_results(self, lineage_pair, locus_definition):
         dna = self._parse_raw_results_dna()
-        true_tree = self._parse_raw_results_true_trees()
-        mut_tree = self._parse_raw_results_mut_trees()
+        true_tree = self._parse_raw_results_true_trees(lineage_pair, locus_definition)
+        mut_tree = self._parse_raw_results_mut_trees(lineage_pair, locus_definition)
         return dna, true_tree, mut_tree
 
     def _harvest_raw_results(self,
@@ -315,7 +324,7 @@ class Fsc2Handler(object):
             lineage_pair,
             locus_definition,
             ):
-        dna, true_tree, mut_tree = self._parse_raw_results()
+        dna, true_tree, mut_tree = self._parse_raw_results(lineage_pair, locus_definition)
         if self.is_compose_raw_data_output_paths_de_novo:
             path_stem = "{}.{}.{}".format(output_prefix, lineage_pair.label, locus_definition.locus_label)
         else:
