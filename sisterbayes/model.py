@@ -173,6 +173,7 @@ class SisterBayesModel(object):
             self.configure_loci(locus_info) # do this first, so we know the number of sister pairs and loci before working on params
         if params_d is not None:
             self.configure_params(params_d)
+        self.fsc2_params_adjustment_hack = 1E8
 
     def configure_loci(self, locus_info):
         self.label_to_lineage_pair_map = {}
@@ -528,18 +529,17 @@ class SisterBayesModel(object):
                 #   - fastsimcoal tau is expressed in generations, so we divide our tau by mu to convert
                 #     - fsc_tau = (tau / 1.0) * C
                 #
-                adjustment_hack = 1E8
                 mu_factor = (locus_definition.mutation_rate_factor * locus_definition.ploidy_factor)
 
                 fsc2_config_d = {
-                    "d0_population_size": (deme0_theta/4.0 * mu_factor) * adjustment_hack,
-                    "d1_population_size": (deme1_theta/4.0 * mu_factor) * adjustment_hack,
+                    "d0_population_size": (deme0_theta/4.0 * mu_factor) * self.fsc2_params_adjustment_hack,
+                    "d1_population_size": (deme1_theta/4.0 * mu_factor) * self.fsc2_params_adjustment_hack,
                     "d0_sample_size": locus_definition.num_genes_deme0,
                     "d1_sample_size": locus_definition.num_genes_deme1,
-                    "div_time": div_time * adjustment_hack, # ditto
+                    "div_time": div_time * self.fsc2_params_adjustment_hack, # ditto
                     "num_sites": locus_definition.num_sites,
                     "recombination_rate": 0,
-                    "mutation_rate":  mu_factor / adjustment_hack,
+                    "mutation_rate":  mu_factor / self.fsc2_params_adjustment_hack,
                     "ti_proportional_bias": (1.0 * locus_definition.ti_tv_rate_ratio)/3.0,
                     }
                 fsc2_run_configurations[locus_definition] = fsc2_config_d

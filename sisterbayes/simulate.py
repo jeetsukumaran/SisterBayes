@@ -92,8 +92,8 @@ class SimulationWorker(multiprocessing.Process):
         self.num_tasks_completed = 0
         self.is_store_raw_data = is_store_raw_data
         self.raw_data_output_prefix = raw_data_output_prefix
-        self.raw_data_alignment_format = raw_data_alignment_format,
-        self.raw_data_tree_format = raw_data_tree_format,
+        self.raw_data_alignment_format = raw_data_alignment_format
+        self.raw_data_tree_format = raw_data_tree_format
         self.fsc2_handler = fsc2.Fsc2Handler(
                 name=name,
                 fsc2_path=fsc2_path,
@@ -106,6 +106,7 @@ class SimulationWorker(multiprocessing.Process):
                 raw_data_alignment_format=self.raw_data_alignment_format,
                 raw_data_tree_format=self.raw_data_tree_format,
                 is_debug_mode=self.is_debug_mode,
+                fsc2_params_adjustment_hack=model.fsc2_params_adjustment_hack
                 )
 
     def send_worker_message(self, msg, level):

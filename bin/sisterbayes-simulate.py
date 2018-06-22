@@ -85,10 +85,12 @@ def main():
             default=False,
             help="Store raw data (alignments and trees).")
     output_options.add_argument( "--raw-data-alignment-format",
-            default="nexus",
+            default="fasta",
+            choices=["fasta", "phylip", "nexus"],
             help="Format for the raw data alignments ('fasta', 'phylip', or 'nexus'; default='fasta').")
     output_options.add_argument( "--raw-data-tree-format",
             default="nexus",
+            choices=["nexus", "newick", "nexml"],
             help="Format for the raw data trees ('nexus', 'newick', or 'nexml'; default='nexus').")
 
     run_options = parser.add_argument_group("Run Options")

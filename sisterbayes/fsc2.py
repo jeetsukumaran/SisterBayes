@@ -80,6 +80,7 @@ class Fsc2Handler(object):
             is_store_raw_data=False,
             raw_data_alignment_format="fasta",
             raw_data_tree_format="nexus",
+            fsc2_params_adjustment_hack=None,
             is_debug_mode=False,
             rng=None
             ):
@@ -98,6 +99,7 @@ class Fsc2Handler(object):
         self.is_store_raw_data = is_store_raw_data
         self.raw_data_alignment_format = raw_data_alignment_format
         self.raw_data_tree_format = raw_data_tree_format
+        self.fsc2_params_adjustment_hack = fsc2_params_adjustment_hack
         self.is_debug_mode = is_debug_mode
         self.is_infinite_sites_model = is_infinite_sites_model
         self.is_output_dna_as_snp = False
@@ -255,24 +257,15 @@ class Fsc2Handler(object):
                     results_d=results_d)
         return results_d
 
-    def _parse_raw_results_true_trees(self, lineage_pair, locus_definition):
-        # branch lengths in units of generations
-        tree = dendropy.Tree.get(path=self.true_trees_filepath, schema="nexus")
-        self._postprocess_raw_tree_taxa(tree)
-        return tree
+    def _postprocess_raw_tree_taxa(self, tree):
+        for taxon in tree.taxon_namespace:
+            individual_id, population_id = taxon.label.split(".")
+            taxon.label = self._compose_raw_data_taxon_label(
+                    population_id=int(population_id),
+                    individual_id=int(individual_id))
 
-    def _parse_raw_results_mut_trees(self, lineage_pair, locus_definition):
-        # branch lengths in (absolute) number of mutations
-        tree = dendropy.Tree.get(path=self.mut_trees_filepath, schema="nexus")
-        # convert branch lengths to per site number of mutations
-        for nd in tree:
-            if nd.edge.length is None:
-                nd.edge.length = 0.0
-            else:
-                nd.edge.length = float(nd.edge.length)
-            nd.edge.length = nd.edge.length / locus_definition.num_sites
-        self._postprocess_raw_tree_taxa(tree)
-        return tree
+    def _compose_raw_data_taxon_label(self, population_id, individual_id):
+        return "T.{:02d}.{:>03}".format(population_id, individual_id)
 
     def _parse_raw_results_dna(self):
         data_dict = collections.OrderedDict()
@@ -311,38 +304,59 @@ class Fsc2Handler(object):
                     in_alignment = True
         return dendropy.DnaCharacterMatrix.from_dict(data_dict)
 
-    def _postprocess_raw_tree_taxa(self, tree):
-        for taxon in tree.taxon_namespace:
-            individual_id, population_id = taxon.label.split(".")
-            taxon.label = self._compose_raw_data_taxon_label(
-                    population_id=int(population_id),
-                    individual_id=int(individual_id))
-
-    def _compose_raw_data_taxon_label(self, population_id, individual_id):
-        return "T.{:02d}.{:>03}".format(population_id, individual_id)
-
-    def _parse_raw_results(self, lineage_pair, locus_definition):
+    def _store_dna_results(self, path_stem):
         dna = self._parse_raw_results_dna()
-        true_tree = self._parse_raw_results_true_trees(lineage_pair, locus_definition)
-        mut_tree = self._parse_raw_results_mut_trees(lineage_pair, locus_definition)
-        return dna, true_tree, mut_tree
+        writer_kwargs = {}
+        if self.raw_data_alignment_format == "fasta":
+            writer_kwargs["wrap"] = False
+        dna.write(
+                path=path_stem + ".{}".format(self.raw_data_alignment_format),
+                schema=self.raw_data_alignment_format,
+                **writer_kwargs)
 
-    def _harvest_raw_results(self,
+    def _store_true_tree_results(self, path_stem):
+        # branch lengths in units of generations
+        tree = dendropy.Tree.get(path=self.true_trees_filepath, schema="nexus")
+        self._postprocess_raw_tree_taxa(tree)
+        if self.is_debug_mode:
+            tree.write(path=path_stem + ".tree.gens-artificial.{}".format(self.raw_data_tree_format), schema=self.raw_data_tree_format)
+        for nd in tree:
+            if nd.edge.length is None:
+                nd.edge.length = 0.0
+            else:
+                nd.edge.length = float(nd.edge.length)
+            nd.edge.length = nd.edge.length / self.fsc2_params_adjustment_hack
+        tree.write(path=path_stem + ".tree.gens.{}".format(self.raw_data_tree_format), schema=self.raw_data_tree_format)
+        return tree
+
+    def _store_mut_tree_results(self, path_stem, locus_definition):
+        # branch lengths in (absolute) number of mutations
+        tree = dendropy.Tree.get(path=self.mut_trees_filepath, schema="nexus")
+        self._postprocess_raw_tree_taxa(tree)
+        if self.is_debug_mode:
+            tree.write(path=path_stem + ".tree.mut-counts.{}".format(self.raw_data_tree_format), schema=self.raw_data_tree_format)
+        # convert branch lengths to per site number of mutations
+        for nd in tree:
+            if nd.edge.length is None:
+                nd.edge.length = 0.0
+            else:
+                nd.edge.length = float(nd.edge.length)
+            nd.edge.length = nd.edge.length / locus_definition.num_sites
+        tree.write(path=path_stem + ".tree.mut-props.{}".format(self.raw_data_tree_format), schema=self.raw_data_tree_format)
+        return tree
+
+    def _store_raw_results(self,
             output_prefix,
             lineage_pair,
             locus_definition,
             ):
-        dna, true_tree, mut_tree = self._parse_raw_results(lineage_pair, locus_definition)
         if self.is_compose_raw_data_output_paths_de_novo:
             path_stem = "{}.{}.{}".format(output_prefix, lineage_pair.label, locus_definition.locus_label)
         else:
             path_stem = "{}.{}".format(output_prefix, os.path.splitext(os.path.basename(locus_definition.alignment_filepath))[0])
-        dna.write(
-                path=path_stem + ".fasta",
-                schema="fasta",
-                wrap=False)
-        true_tree.write(path=path_stem + ".tree.true.nex", schema="nexus")
-        mut_tree.write(path=path_stem + ".tree.mut.nex", schema="nexus")
+        self._store_dna_results(path_stem)
+        self._store_true_tree_results(path_stem)
+        self._store_mut_tree_results(path_stem, locus_definition)
 
     def _post_execution_cleanup(self):
         pass
@@ -389,7 +403,7 @@ class Fsc2Handler(object):
                 field_name_prefix=field_name_prefix,
                 results_d=results_d)
         if self.is_store_raw_data:
-            self._harvest_raw_results(
+            self._store_raw_results(
                     output_prefix=raw_data_output_prefix,
                     lineage_pair=lineage_pair,
                     locus_definition=locus_definition,
