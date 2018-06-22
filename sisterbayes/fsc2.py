@@ -77,6 +77,10 @@ class Fsc2Handler(object):
             is_calculate_joint_population_sfs,
             is_unfolded_site_frequency_spectrum,
             is_infinite_sites_model,
+            is_store_raw_data=False,
+            raw_data_alignment_format="fasta",
+            raw_data_tree_format="nexus",
+            is_debug_mode=False,
             rng=None
             ):
         self.name = name
@@ -91,6 +95,10 @@ class Fsc2Handler(object):
             self.fsc2_sfs_generation_command = "-m"
         self.is_calculate_single_population_sfs = is_calculate_single_population_sfs
         self.is_calculate_joint_population_sfs = is_calculate_joint_population_sfs
+        self.is_store_raw_data = is_store_raw_data
+        self.raw_data_alignment_format = raw_data_alignment_format
+        self.raw_data_tree_format = raw_data_tree_format
+        self.is_debug_mode = is_debug_mode
         self.is_infinite_sites_model = is_infinite_sites_model
         self.is_output_dna_as_snp = False
         self._is_file_system_staged = False
@@ -344,7 +352,6 @@ class Fsc2Handler(object):
             fsc2_config_d,
             random_seed,
             results_d,
-            is_store_raw_data=False,
             raw_data_output_prefix=None,
             lineage_pair=None,
             locus_definition=None,
@@ -360,7 +367,7 @@ class Fsc2Handler(object):
             cmds.append("-I")                    # -I  --inf               : generates DNA mutations according to an infinite site (IS) mutation model
         cmds.append("-S")                       # -S  --allsites          : output the whole DNA sequence, incl. monomorphic sites
         cmds.append("-s0")                      # -s  --dnatosnp 2000     : output DNA as SNP data, and specify maximum no. of SNPs to output (use 0 to output all SNPs). (required to calculate SFS)
-        if not is_store_raw_data:
+        if not self.is_store_raw_data:
             cmds.append("-x")                       # -x  --noarloutput       : does not generate Arlequin output
         else:
             cmds.append("-T")
@@ -381,7 +388,7 @@ class Fsc2Handler(object):
         self._harvest_run_results(
                 field_name_prefix=field_name_prefix,
                 results_d=results_d)
-        if is_store_raw_data:
+        if self.is_store_raw_data:
             self._harvest_raw_results(
                     output_prefix=raw_data_output_prefix,
                     lineage_pair=lineage_pair,

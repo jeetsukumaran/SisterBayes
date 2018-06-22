@@ -84,6 +84,12 @@ def main():
             action="store_true",
             default=False,
             help="Store raw data (alignments and trees).")
+    output_options.add_argument( "--raw-data-alignment-format",
+            default="nexus",
+            help="Format for the raw data alignments ('fasta', 'phylip', or 'nexus'; default='fasta').")
+    output_options.add_argument( "--raw-data-tree-format",
+            default="nexus",
+            help="Format for the raw data trees ('nexus', 'newick', or 'nexml'; default='nexus').")
 
     run_options = parser.add_argument_group("Run Options")
     run_options.add_argument("-n", "--num-reps",
@@ -183,6 +189,11 @@ def main():
                 num_processes=args.num_processes,
                 is_verbose_setup=True,
                 package_id=package_id,
+                is_store_raw_data=args.raw_data,
+                raw_data_output_prefix=config_d["output_prefix"],
+                raw_data_alignment_format=args.raw_data_alignment_format,
+                raw_data_tree_format=args.raw_data_tree_format,
+                is_debug_mode=args.debug_mode,
                 )
         filepath = config_d["output_prefix"] + ".tsv"
         dest = utility.universal_open(filepath, "a" if args.append else "w")
@@ -203,8 +214,7 @@ def main():
                         dest=dest,
                         results_store=None,
                         is_write_header=is_write_header,
-                        is_store_raw_data=args.raw_data,
-                        raw_data_output_prefix=config_d["output_prefix"])
+                        )
             except Exception as e:
                 sys.stderr.write("Traceback (most recent call last):\n  {}{}\n".format(
                     "  ".join(traceback.format_tb(sys.exc_info()[2])),

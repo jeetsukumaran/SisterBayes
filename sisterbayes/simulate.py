@@ -68,19 +68,13 @@ class SimulationWorker(multiprocessing.Process):
             stat_label_prefix,
             is_include_model_id_field,
             supplemental_labels,
-            debug_mode,
+            is_debug_mode,
             is_store_raw_data,
             raw_data_output_prefix,
+            raw_data_alignment_format,
+            raw_data_tree_format,
             ):
         multiprocessing.Process.__init__(self, name=name)
-        self.fsc2_handler = fsc2.Fsc2Handler(
-                name=name,
-                fsc2_path=fsc2_path,
-                working_directory=working_directory,
-                is_calculate_single_population_sfs=is_calculate_single_population_sfs,
-                is_calculate_joint_population_sfs=is_calculate_joint_population_sfs,
-                is_unfolded_site_frequency_spectrum=is_unfolded_site_frequency_spectrum,
-                is_infinite_sites_model=is_infinite_sites_model)
         self.model = model
         self.rng = random.Random(random_seed)
         self.task_queue = task_queue
@@ -92,12 +86,27 @@ class SimulationWorker(multiprocessing.Process):
         self.stat_label_prefix = stat_label_prefix
         self.is_include_model_id_field = is_include_model_id_field
         self.supplemental_labels = supplemental_labels
-        self.is_debug_mode = debug_mode
+        self.is_debug_mode = is_debug_mode
         self.kill_received = False
         self.num_tasks_received = 0
         self.num_tasks_completed = 0
         self.is_store_raw_data = is_store_raw_data
         self.raw_data_output_prefix = raw_data_output_prefix
+        self.raw_data_alignment_format = raw_data_alignment_format,
+        self.raw_data_tree_format = raw_data_tree_format,
+        self.fsc2_handler = fsc2.Fsc2Handler(
+                name=name,
+                fsc2_path=fsc2_path,
+                working_directory=working_directory,
+                is_calculate_single_population_sfs=is_calculate_single_population_sfs,
+                is_calculate_joint_population_sfs=is_calculate_joint_population_sfs,
+                is_unfolded_site_frequency_spectrum=is_unfolded_site_frequency_spectrum,
+                is_infinite_sites_model=is_infinite_sites_model,
+                is_store_raw_data=self.is_store_raw_data,
+                raw_data_alignment_format=self.raw_data_alignment_format,
+                raw_data_tree_format=self.raw_data_tree_format,
+                is_debug_mode=self.is_debug_mode,
+                )
 
     def send_worker_message(self, msg, level):
         if self.run_logger is None:
@@ -176,7 +185,6 @@ class SimulationWorker(multiprocessing.Process):
                         fsc2_config_d=fsc2_run_configurations[locus_definition],
                         random_seed=self.rng.randint(1, 1E6),
                         results_d=results_d,
-                        is_store_raw_data=self.is_store_raw_data,
                         raw_data_output_prefix="{}.{:04d}".format(self.raw_data_output_prefix, rep_idx+1),
                         lineage_pair=lineage_pair, # only needed for raw data output path composition
                         locus_definition=locus_definition, # only needed for raw data output path composition
@@ -242,13 +250,24 @@ class SisterBayesSimulator(object):
             num_processes=None,
             logging_frequency=1000,
             package_id=None,
-            is_verbose_setup=True):
+            is_verbose_setup=True,
+            is_store_raw_data=False,
+            raw_data_output_prefix=None,
+            raw_data_alignment_format="fasta",
+            raw_data_tree_format="nexus",
+            is_debug_mode=False,
+            ):
         # configure
         if package_id is None:
             self.package_id = sisterbayes.package_id()
         else:
             self.package_id = package_id
         self.elapsed_time = 0.0 # need to be here for logging
+        self.is_store_raw_data = is_store_raw_data
+        self.raw_data_output_prefix = raw_data_output_prefix
+        self.raw_data_alignment_format = raw_data_alignment_format
+        self.raw_data_tree_format = raw_data_tree_format
+        self.is_debug_mode = is_debug_mode
         config_d = dict(config_d) # make copy so we can pop items
         self.is_verbose_setup = is_verbose_setup
         self.configure_simulator(config_d)
@@ -317,7 +336,6 @@ class SisterBayesSimulator(object):
                 raise TypeError("Cannot specify both 'rng' and 'random_seed'")
             if self.is_verbose_setup:
                 self.run_logger.info("Using existing random number generator")
-        self.is_debug_mode = config_d.pop("debug_mode", False)
         if self.is_verbose_setup and self.is_debug_mode:
             self.run_logger.info("Running in DEBUG mode")
         self.site_frequency_spectrum_type = config_d.pop("site_frequency_spectrum_type", "unfolded").lower()
@@ -360,8 +378,6 @@ class SisterBayesSimulator(object):
             dest=None,
             results_store=None,
             is_write_header=True,
-            is_store_raw_data=False,
-            raw_data_output_prefix=None,
             ):
         # load up queue
         self.run_logger.info("Priming task queue")
@@ -401,9 +417,11 @@ class SisterBayesSimulator(object):
                     stat_label_prefix=self.stat_label_prefix,
                     is_include_model_id_field=self.is_include_model_id_field,
                     supplemental_labels=self.supplemental_labels,
-                    debug_mode=self.is_debug_mode,
-                    is_store_raw_data=is_store_raw_data,
-                    raw_data_output_prefix=raw_data_output_prefix,
+                    is_debug_mode=self.is_debug_mode,
+                    is_store_raw_data=self.is_store_raw_data,
+                    raw_data_output_prefix=self.raw_data_output_prefix,
+                    raw_data_alignment_format=self.raw_data_alignment_format,
+                    raw_data_tree_format=self.raw_data_tree_format,
                     )
             worker.start()
             workers.append(worker)
