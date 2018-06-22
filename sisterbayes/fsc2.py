@@ -263,6 +263,7 @@ class Fsc2Handler(object):
             taxon.label = self._compose_raw_data_taxon_label(
                     population_id=int(population_id),
                     individual_id=int(individual_id))
+        tree.taxon_namespace.sort(key=lambda x:x.label)
 
     def _compose_raw_data_taxon_label(self, population_id, individual_id):
         return "T.{:02d}.{:>03}".format(population_id, individual_id)
@@ -273,6 +274,7 @@ class Fsc2Handler(object):
         column_decodings = {}
         with utility.universal_open(self.arlequin_filepath) as src:
             idx = 0
+            first_pop_max_ind_id = 0
             in_alignment = False
             for row in src:
                 row = row[:-1] # chomp terminating \n
@@ -293,9 +295,20 @@ class Fsc2Handler(object):
                                     decoding_lookup = self.rng.choice(decodings)
                                     column_decodings[col_idx] = decoding_lookup
                                 decoded_data.append( decoding_lookup[ int(ch) ] )
+                            pop_id, ind_id = [int(label_part) for label_part in x1.split("_")]
+                            # this ugly hack is because fastsimcoal inconsistently numbers
+                            # individuals on trees vs sequences ... even
+                            # assuming there is a correspondence
+                            if pop_id == 1:
+                                first_pop_max_ind_id = max(first_pop_max_ind_id, ind_id)
+                            else:
+                                ind_id += first_pop_max_ind_id
                             taxon_label = self._compose_raw_data_taxon_label(
-                                    population_id=idx,
-                                    individual_id=x1)
+                                    population_id=pop_id,
+                                    individual_id=ind_id)
+                            # taxon_label = self._compose_raw_data_taxon_label(
+                            #         population_id=idx,
+                            #         individual_id=x1)
                             data_dict[taxon_label] = "".join(decoded_data)
                         except IndexError:
                             raise
