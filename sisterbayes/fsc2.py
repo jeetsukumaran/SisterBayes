@@ -326,7 +326,7 @@ class Fsc2Handler(object):
             else:
                 nd.edge.length = float(nd.edge.length)
             nd.edge.length = nd.edge.length / self.fsc2_params_adjustment_hack
-        tree.write(path=path_stem + ".tree.gens.{}".format(self.raw_data_tree_format), schema=self.raw_data_tree_format)
+        tree.write(path=path_stem + ".tree.theta.{}".format(self.raw_data_tree_format), schema=self.raw_data_tree_format)
         return tree
 
     def _store_mut_tree_results(self, path_stem, locus_definition):
