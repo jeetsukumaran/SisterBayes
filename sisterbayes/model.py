@@ -199,10 +199,13 @@ class SisterBayesModel(object):
         params_d = utility.CaseInsensitiveDict(params_d)
         # Shape and scale of Gamma hyperprior on
         # concentration parameter of Dirichlet process to partition pairs
-        self.prior_concentration = (
-                float(params_d.pop("concentrationShape")),
-                float(params_d.pop("concentrationScale"))
-                )
+        if "concentrationShape" in params_d or "concentrationScale" in params_d:
+            self.prior_concentration = (
+                    float(params_d.pop("concentrationShape")),
+                    float(params_d.pop("concentrationScale"))
+                    )
+        elif "numTauClasses" not in params_d:
+            raise ValueError("Concentration shape ('concentrationShape') and scale ('concentrationScale') parameters missing and 'numTauClasses' or 'fixedDivTimeModel' not specified")
 
         # # Shape and scale of Gamma hyperprior on theta PyMsBayes does not
         # # independently model N and \mu, but FastsimCoal2 does.
@@ -263,8 +266,8 @@ class SisterBayesModel(object):
         # Shape and scale of Gamma hyperprior on
         # divergence times
         self.prior_migration = (
-                float(params_d.pop("migrationShape")),
-                float(params_d.pop("migrationScale"))
+                float(params_d.pop("migrationShape", 0)),
+                float(params_d.pop("migrationScale", 0))
                 )
         if self.prior_migration[0] != 0 or self.prior_migration[1] != 0:
             raise NotImplementedError("Migration is not yet supported")
@@ -274,7 +277,7 @@ class SisterBayesModel(object):
         #    the populations since the population divergence). Thus, you can
         #    convert these units to the number of generations or years by dividing
         #    by the mutation rate.
-        tss = int(params_d.pop("timeInSubsPerSite"))
+        tss = int(params_d.pop("timeInSubsPerSite", 1))
         self.time_in_subs_per_site = bool(tss)
         if not self.time_in_subs_per_site:
             raise NotImplementedError("Time not in expected substitutions per site not supported")
@@ -300,7 +303,7 @@ class SisterBayesModel(object):
         # (i.e., the descendant populations of each pair share the same
         # bottleneck magnitude; the bottleneck magnitude still varies among the
         # pairs).
-        self.bottle_proportion_shared = bool(int(params_d.pop("bottleProportionShared")))
+        self.bottle_proportion_shared = bool(int(params_d.pop("bottleProportionShared", 0)))
         # Fixed the divergence time model.
         self.fixed_divergence_time_model = params_d.pop("fixedDivTimeModel", None)
         if self.fixed_divergence_time_model is not None:
