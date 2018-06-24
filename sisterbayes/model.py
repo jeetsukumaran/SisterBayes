@@ -318,7 +318,7 @@ class SisterBayesModel(object):
         # constrained to numTauClasses divergence events. This is useful for
         # simulation-based power analyses, but should not be used for empirical
         # analyses.
-        self.num_tau_classes = int(params_d.pop("numTauClasses"))
+        self.num_tau_classes = int(params_d.pop("numTauClasses", 0))
         if self.num_tau_classes > 0 and self.fixed_divergence_time_model is not None:
             num_grps = len(set(self.fixed_divergence_time_model))
             if num_grps != self.num_tau_classes:
