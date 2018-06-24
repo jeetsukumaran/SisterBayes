@@ -323,7 +323,7 @@ class Fsc2Handler(object):
         if self.raw_data_alignment_format == "fasta":
             writer_kwargs["wrap"] = False
         dna.write(
-                path=path_stem + ".{}".format(self.raw_data_alignment_format),
+                path=path_stem + ".seqs.{}".format(self.raw_data_alignment_format),
                 schema=self.raw_data_alignment_format,
                 **writer_kwargs)
 
