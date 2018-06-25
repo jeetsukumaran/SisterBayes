@@ -68,30 +68,34 @@ def main():
             default='stat',
             metavar='PREFIX',
             help="Prefix for summar statistic field labels (default: '%(default)s').")
-    output_options.add_argument( "--include-model-id-field",
+    output_options.add_argument("--include-model-id-field",
             action="store_true",
             default=False,
             help="Include a 'model.id' field (with same value as 'param.divTimeModel' field) in output.")
-    output_options.add_argument( "--append",
+    output_options.add_argument("--append",
             action="store_true",
             default=False,
             help="Append instead of overwriting output file(s).")
-    output_options.add_argument( "--no-write-header",
+    output_options.add_argument("--no-write-header",
             action="store_true",
             default=False,
             help="Do not writer header row.")
-    output_options.add_argument( "--raw-data",
+    output_options.add_argument("--raw-data",
             action="store_true",
             default=False,
-            help="Store raw data (alignments and trees).")
-    output_options.add_argument( "--raw-data-alignment-format",
+            help="Output raw data (alignments and trees).")
+    output_options.add_argument("--raw-data-alignment-format",
             default="fasta",
             choices=["fasta", "phylip", "nexus"],
             help="Format for the raw data alignments ('fasta', 'phylip', or 'nexus'; default='fasta').")
-    output_options.add_argument( "--raw-data-tree-format",
+    output_options.add_argument("--raw-data-tree-format",
             default="nexus",
             choices=["nexus", "newick", "nexml"],
             help="Format for the raw data trees ('nexus', 'newick', or 'nexml'; default='nexus').")
+    output_options.add_argument("--params-only-file",
+            action="store_true",
+            default=False,
+            help="Output file consisting of parameters only (for checking/validation).")
 
     run_options = parser.add_argument_group("Run Options")
     run_options.add_argument("-n", "--num-reps",
@@ -197,8 +201,13 @@ def main():
                 raw_data_tree_format=args.raw_data_tree_format,
                 is_debug_mode=args.debug_mode,
                 )
-        filepath = config_d["output_prefix"] + ".tsv"
-        dest = utility.universal_open(filepath, "a" if args.append else "w")
+        main_dest_filepath = config_d["output_prefix"] + ".tsv"
+        dest = utility.universal_open(main_dest_filepath, "a" if args.append else "w")
+        if args.params_only_file:
+            params_only_dest_filepath = config_d["output_prefix"] + ".params.tsv"
+            params_only_dest = utility.universal_open(params_only_dest_filepath, "a" if args.append else "w")
+        else:
+            params_only_dest = None
         # dest = utility.open_destput_file_for_csv_writer(
         #         filepath=filepath,
         #         is_append=args.append)
@@ -215,6 +224,7 @@ def main():
                         nreps=args.num_reps,
                         dest=dest,
                         results_store=None,
+                        params_only_dest=params_only_dest,
                         is_write_header=is_write_header,
                         )
             except Exception as e:
@@ -222,6 +232,8 @@ def main():
                     "  ".join(traceback.format_tb(sys.exc_info()[2])),
                     e))
                 sys.exit(1)
+        if params_only_dest:
+            params_only_dest.close()
 
 if __name__ == "__main__":
     main()

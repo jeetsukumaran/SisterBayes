@@ -378,6 +378,7 @@ class SisterBayesSimulator(object):
             nreps,
             dest=None,
             results_store=None,
+            params_only_dest=None,
             is_write_header=True,
             ):
         # load up queue
@@ -453,6 +454,18 @@ class SisterBayesSimulator(object):
                         dest.write("\n")
                     dest.write(self.field_delimiter.join("{}".format(v) for v in result.values()))
                     dest.write("\n")
+                if params_only_dest is not None:
+                    # result_params = {k:result[k] for k in result if k.startswith("param")}
+                    result_params = collections.OrderedDict()
+                    for k in result:
+                        if not k.startswith("param"):
+                            continue
+                        result_params[k] = result[k]
+                    if result_count == 0 and is_write_header:
+                        params_only_dest.write(self.field_delimiter.join(result_params.keys()))
+                        params_only_dest.write("\n")
+                    params_only_dest.write(self.field_delimiter.join("{}".format(v) for v in result_params.values()))
+                    params_only_dest.write("\n")
                 result_count += 1
                 if self.logging_frequency and result_count % self.logging_frequency == 0:
                     self.run_logger.info("Completed replicate {} (remaining job time: {})".format(
