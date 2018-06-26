@@ -201,7 +201,7 @@ def main():
                 raw_data_tree_format=args.raw_data_tree_format,
                 is_debug_mode=args.debug_mode,
                 )
-        main_dest_filepath = config_d["output_prefix"] + ".tsv"
+        main_dest_filepath = config_d["output_prefix"] + ".stats.tsv"
         dest = utility.universal_open(main_dest_filepath, "a" if args.append else "w")
         if args.params_only_file:
             params_only_dest_filepath = config_d["output_prefix"] + ".params.tsv"
