@@ -252,13 +252,21 @@ class SisterBayesModel(object):
                 )
         # Alternate time prior parameterization: uniform distribution + beta
         # parameter to control pulses
-        self.pulse_buffer_beta = float(params_d.pop("pulseBufferBeta", 0))
+        pbb = params_d.pop("pulseBufferBeta", None)
+        try:
+            self.pulse_buffer_beta = float(pbb)
+        except TypeError:
+            self.pulse_buffer_beta = None
         self.tau_min = float(params_d.pop("tauMin", 0))
         self.tau_max = float(params_d.pop("tauMax", 0))
-        if self.pulse_buffer_beta != 0 or self.tau_min != 0 or self.tau_max != 0:
+        if self.tau_min != 0 or self.tau_max != 0:
             if self.prior_tau[0] != 0 or self.prior_tau[1] != 0:
                 raise ValueError("Cannot specify gamma-distributed prior and uniform prior on tau at the same time")
-            self.tau_parameterization = "uniform+beta"
+            if self.pulse_buffer_beta is None:
+                self.tau_parameterization = "uniform"
+            else:
+                self.tau_parameterization = "uniform+beta"
+            # self.tau_parameterization = "uniform"
         else:
             if self.prior_tau[0] == 0 or self.prior_tau[1] == 0:
                 raise ValueError("Must specify either gamma-distributed prior or uniform prior on tau")
@@ -409,7 +417,9 @@ class SisterBayesModel(object):
             div_time_values = [self.fixed_divergence_times[i] for i in range(len(groups))]
         elif self.tau_parameterization == "gamma":
             div_time_values = [rng.gammavariate(*self.prior_tau) for i in groups]
-        else:
+        elif self.tau_parameterization == "uniform":
+            div_time_values = [rng.uniform(self.tau_min, self.tau_max) for i in groups]
+        elif self.tau_parameterization == "uniform+beta":
             div_time_values = []
             available_time_ranges = [ [self.tau_min, self.tau_max] ]
             available_time_range_sizes = [ self.tau_max-self.tau_min ]
@@ -444,6 +454,8 @@ class SisterBayesModel(object):
                 else:
                     raise ValueError("Unable to sample divergence times: pulse buffer parameter value too large relative to time range")
             # print("\n\n\n---\n{}\n---\n\n\n".format(div_time_values))
+        else:
+            raise ValueError("Unsupported tau parameterization: '{}'".format(self.tau_parameterization))
         fsc2_run_configurations = collections.OrderedDict()
         div_time_model_desc = [None for i in range(self.num_lineage_pairs)]
 
