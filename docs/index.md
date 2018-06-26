@@ -16,9 +16,11 @@ Like the above programs, *SisterBayes* uses an [Approximate Bayesian Computation
 
 *SisterBayes* distinguishes itself from the above by incorporating the following features:
 
--   Instead of just a small handful of relatively highly-lossy summary statistics (e.g., Tajima's D, Pi, etc.), *SisterBayes* uses the *entire* Joint Summary Statistic Spectrum, thus maximizing the amount of information that could possibly be used.
--   *SisterBayes* allows the full use of multi-locus data (while *msBayes* supports multi-locus data by averaging summary statistics across loci, resulting in extreme and extremely undesirable jettisoning of power) as well as SNP's.
+-   *SisterBayes* uses the *entire* Joint Summary Statistic Spectrum, thus maximizing the amount of information that could possibly be used, instead of just a small handful of relatively highly-lossy summary statistics (e.g., Tajima's D, Pi, etc.),
+-   *SisterBayes* allows the full use of multi-locus data as well as SNP's; in contrast, *msBayes* only supports multi-locus data by averaging summary statistics across loci, resulting in extreme and extremely undesirable jettisoning of power.
+-   *SisterBayes* supports multiple different types of prior distributions on $\tau$, the time of the root split between the two populations of each species pair: a gamma distribution, a uniform plus beta "buffer", as well as a simple uniform.
 -   *SisterBayes* is written from scratch in modern object-oriented Python, natively supports multi-threading, and, in addition to incorporating all the excellent model enhancements in [PyMsBayes](https://joaks1.github.io/PyMsBayes/), also incorporates features from other approaches (e.g., the "Beta" buffer parameter) as well as some of its own (e.g., the post-analytic clustering heuristic).
+-   *SisterBayes* provides special options useful in theoretical studies, including fixing divergence times, numbers of divergence classes, as well as output of raw alignments and trees.
 
 ## Installation
 
