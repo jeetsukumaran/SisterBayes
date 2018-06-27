@@ -21,6 +21,7 @@ class SisterBayesRejector(object):
             field_delimiter="\t",
             is_write_summary_stats=False,
             is_write_rejection_score=False,
+            is_output_target_params=False,
             is_suppress_checks=False,
             ):
         self.rejection_criteria_type = rejection_criteria_type
@@ -31,9 +32,11 @@ class SisterBayesRejector(object):
         self.field_delimiter = field_delimiter
         self.is_write_summary_stats = is_write_summary_stats
         self.is_write_rejection_score = is_write_rejection_score
+        self.is_output_target_params = is_output_target_params
         self.is_suppress_checks = is_suppress_checks
         self.stat_fieldnames = None
         self.stat_fieldnames_check = None
+        self.non_stat_fieldnames = None
         self.distance_score_fieldname = "rejection.score"
 
     def euclidean_distance(self, vector1, vector2):
@@ -44,11 +47,15 @@ class SisterBayesRejector(object):
 
     def extract_stat_fieldnames(self, fieldnames):
         stat_fieldnames = []
+        non_stat_fieldnames = []
         for fieldname in fieldnames:
             if fieldname.startswith(self.stats_field_prefix):
                 stat_fieldnames.append(fieldname)
+            else:
+                non_stat_fieldnames.append(fieldname)
         assert len(stat_fieldnames) == len(set(stat_fieldnames))
-        return stat_fieldnames
+        assert len(non_stat_fieldnames) == len(set(non_stat_fieldnames))
+        return stat_fieldnames, non_stat_fieldnames
 
     def extract_stats_data_vector_from_csv_row(self, row):
         data_vector = [float(v) for v in (row[k] for k in self.stat_fieldnames)]
@@ -72,7 +79,7 @@ class SisterBayesRejector(object):
                     quoting=csv.QUOTE_NONE)
             for target_row_idx, target_row in enumerate(target_data_reader):
                 if target_row_idx == 0:
-                    self.stat_fieldnames = self.extract_stat_fieldnames(target_data_reader.fieldnames)
+                    self.stat_fieldnames, self.non_stat_fieldnames = self.extract_stat_fieldnames(target_data_reader.fieldnames)
                     self.stat_fieldnames_set = set(self.stat_fieldnames)
                 self.run_logger.info("Scoring target data {}".format(target_row_idx+1))
                 target_data_vector = self.extract_stats_data_vector_from_csv_row(target_row)
@@ -81,6 +88,13 @@ class SisterBayesRejector(object):
                         target_data_vector=target_data_vector,
                         priors_data_filepaths=priors_data_filepaths,
                         output_filepath=posteriors_filepath)
+                if self.is_output_target_params:
+                    target_params_filepath = "{}.posterior.{:03d}.target{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
+                    with open(target_params_filepath, "w") as target_params_f:
+                        target_params_f.write(self.field_delimiter.join(self.non_stat_fieldnames))
+                        target_params_f.write("\n")
+                        target_params_f.write(self.field_delimiter.join(str(target_row[k]) for k in self.non_stat_fieldnames))
+                        target_params_f.write("\n")
 
     def accept_reject(self,
             target_data_vector,
@@ -108,7 +122,7 @@ class SisterBayesRejector(object):
                         if fidx == 0:
                             all_prior_fieldnames = list(priors_data_reader.fieldnames)
                             all_prior_fieldnames_set = set(all_prior_fieldnames)
-                            current_file_stat_fieldnames = set(self.extract_stat_fieldnames(priors_data_reader.fieldnames))
+                            current_file_stat_fieldnames = set(self.extract_stat_fieldnames(priors_data_reader.fieldnames)[0])
                             s1 = current_file_stat_fieldnames - self.stat_fieldnames_set
                             if s1:
                                 raise ValueError("File '{}': Following summary statistics fields not found in target: {}".format(
@@ -273,6 +287,10 @@ def main():
             "--write-rejection-score",
             action="store_true",
             help="Include rejection score in the output.")
+    output_options.add_argument(
+            "--output-target-params",
+            action="store_true",
+            help="For each row in the target data file processed, output a file of non-summary stats fields found.")
     run_options = parser.add_argument_group("Run Options")
     # run_options.add_argument(
     #         "-L", "--large-file",
@@ -319,6 +337,7 @@ def main():
             field_delimiter=args.field_delimiter,
             is_write_summary_stats=args.write_summary_stats,
             is_write_rejection_score=args.write_rejection_score,
+            is_output_target_params=args.output_target_params,
             )
     rejector.process(
             target_data_filepath=args.target_data_filepath,
