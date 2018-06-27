@@ -83,13 +83,13 @@ class SisterBayesRejector(object):
                     self.stat_fieldnames_set = set(self.stat_fieldnames)
                 self.run_logger.info("Scoring target data {}".format(target_row_idx+1))
                 target_data_vector = self.extract_stats_data_vector_from_csv_row(target_row)
-                posteriors_filepath = "{}.posterior.{:06d}{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
+                posteriors_filepath = "{}.posterior.{:03d}.samples{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
                 self.accept_reject(
                         target_data_vector=target_data_vector,
                         priors_data_filepaths=priors_data_filepaths,
                         output_filepath=posteriors_filepath)
                 if self.is_output_target_params:
-                    target_params_filepath = "{}.posterior.{:06d}.target{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
+                    target_params_filepath = "{}.posterior.{:03d}.target{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
                     with open(target_params_filepath, "w") as target_params_f:
                         target_params_f.write(self.field_delimiter.join(self.non_stat_fieldnames))
                         target_params_f.write("\n")
