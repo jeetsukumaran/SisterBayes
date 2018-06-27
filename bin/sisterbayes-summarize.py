@@ -21,6 +21,8 @@ class SisterBayesSummarizer(object):
             field_delimiter="\t",
             exclude_field_patterns=None,
             include_only_field_patterns=None,
+            output_name_prefix=None,
+            output_directory=None,
             ):
         self.cluster_criteria = cluster_criteria
         self.cluster_criteria_value = cluster_criteria_value
@@ -30,6 +32,10 @@ class SisterBayesSummarizer(object):
         self.stat_fieldnames = None
         self.stat_fieldnames_check = None
         self.other_fieldname_check = None
+        self.output_name_prefix = output_name_prefix
+        self.output_directory = output_directory
+        if self.output_directory is not None:
+            self.output_directory = os.path.realpath(self.output_directory)
         self.stat_values = []
         self.other_values = []
 
@@ -119,6 +125,12 @@ class SisterBayesSummarizer(object):
             bin_size=bin_size)
 
     def summarize(self, target_data_filepath,):
+        if self.output_name_prefix is None:
+            self.output_name_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0]
+        if self.output_directory is None:
+            self.output_directory = "."
+        self.output_directory = os.path.realpath(self.output_directory)
+        output_prefix = os.path.join(self.output_directory, self.output_name_prefix)
         with utility.universal_open(target_data_filepath) as src:
             reader = csv.DictReader(
                     src,
@@ -193,7 +205,6 @@ class SisterBayesSummarizer(object):
                 categorical_params["param.effectiveDivTimeModel"] = cluster_results
             ### EXPERIMENTAL ###
 
-            output_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0]
             with utility.universal_open(output_prefix + ".summary.continuous.tsv", "w") as dest:
                 row_results = collections.OrderedDict()
                 for param_idx, param_name in enumerate(continuous_params):
@@ -266,6 +277,21 @@ def main():
         type=str,
         default="\t",
         help="Field delimiter (default: <TAB>).")
+    output_options = parser.add_argument_group("Output Options")
+    output_options.add_argument('-o', '--output-name-prefix',
+            action='store',
+            dest='output_name_prefix',
+            type=str,
+            default=None,
+            metavar='NAME-PREFIX',
+            help="Prefix for output filenames (default: same as configuration filename stem).")
+    output_options.add_argument('-O', '--output-directory',
+            action='store',
+            dest='output_directory',
+            type=str,
+            default=None,
+            metavar='DIRECTORY',
+            help="Directory for output files (default: current working directory).")
     run_options = parser.add_argument_group("Run Options")
     run_options.add_argument(
             "-q", "--quiet",
@@ -288,6 +314,8 @@ def main():
             cluster_criteria=cluster_criteria,
             cluster_criteria_value=cluster_criteria_value,
             field_delimiter=args.field_delimiter,
+            output_name_prefix=args.output_name_prefix,
+            output_directory=args.output_directory,
             )
     summarizer.summarize(args.posteriors_filepath)
 

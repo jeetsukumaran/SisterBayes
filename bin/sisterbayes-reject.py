@@ -64,10 +64,11 @@ class SisterBayesRejector(object):
     def process(self,
             target_data_filepath,
             priors_data_filepaths,
-            output_prefix,
+            output_name_prefix,
+            output_directory,
             output_suffix):
-        if output_prefix is None:
-            output_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0]
+        if output_name_prefix is None:
+            output_name_prefix = os.path.splitext(os.path.basename(target_data_filepath))[0]
         if output_suffix is None:
             output_suffix = ""
         else:
@@ -83,13 +84,13 @@ class SisterBayesRejector(object):
                     self.stat_fieldnames_set = set(self.stat_fieldnames)
                 self.run_logger.info("Scoring target data {}".format(target_row_idx+1))
                 target_data_vector = self.extract_stats_data_vector_from_csv_row(target_row)
-                posteriors_filepath = "{}.posterior.{:03d}.samples{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
+                posteriors_filepath = os.path.join(output_directory, "{}.posterior.{:03d}.samples{}.tsv".format(output_name_prefix, target_row_idx+1, output_suffix))
                 self.accept_reject(
                         target_data_vector=target_data_vector,
                         priors_data_filepaths=priors_data_filepaths,
                         output_filepath=posteriors_filepath)
                 if self.is_output_target_params:
-                    target_params_filepath = "{}.posterior.{:03d}.target{}.tsv".format(output_prefix, target_row_idx+1, output_suffix)
+                    target_params_filepath = os.path.join(output_directory, "{}.posterior.{:03d}.target{}.tsv".format(output_name_prefix, target_row_idx+1, output_suffix))
                     with open(target_params_filepath, "w") as target_params_f:
                         target_params_f.write(self.field_delimiter.join(self.non_stat_fieldnames))
                         target_params_f.write("\n")
@@ -267,13 +268,21 @@ def main():
         default="stat",
         help="Prefix identifying summary statistic fields (default: '%(default)s').")
     output_options = parser.add_argument_group("Output Options")
-    output_options.add_argument('-o', '--output-prefix',
+    output_options.add_argument('-o', '--output-name-prefix',
             action='store',
+            dest='output_name_prefix',
             type=str,
             default=None,
             metavar='NAME-PREFIX',
-            help="Prefix for output filename.")
-    output_options.add_argument('-O', '--output-suffix',
+            help="Prefix for output filenames (default: same as configuration filename stem).")
+    output_options.add_argument('-O', '--output-directory',
+            action='store',
+            dest='output_directory',
+            type=str,
+            default=None,
+            metavar='DIRECTORY',
+            help="Directory for output files (default: current working directory).")
+    output_options.add_argument('--output-suffix',
             action='store',
             type=str,
             default=None,
@@ -342,7 +351,8 @@ def main():
     rejector.process(
             target_data_filepath=args.target_data_filepath,
             priors_data_filepaths=args.simulations_data_filepaths,
-            output_prefix=args.output_prefix,
+            output_name_prefix=args.output_name_prefix,
+            output_directory=args.output_directory,
             output_suffix=args.output_suffix)
 
 if __name__ == "__main__":
