@@ -207,12 +207,28 @@ class SisterBayesModel(object):
         elif "numTauClasses" not in params_d:
             raise ValueError("Concentration shape ('concentrationShape') and scale ('concentrationScale') parameters missing and 'numTauClasses' or 'fixedDivTimeModel' not specified")
 
-        # # Shape and scale of Gamma hyperprior on theta PyMsBayes does not
-        # # independently model N and \mu, but FastsimCoal2 does.
-        self.prior_theta = (
-                float(params_d.pop("thetaShape")),
-                float(params_d.pop("thetaScale"))
-                )
+        # Special param for simulation/testing: fixed theta to a particular
+        # value. Either '0' (ignore) or a three comma-separate values.
+        # Values are for deme0, deme1, and ancestral deme, respectively.
+        # Any value of '0' will be ignored (allowed to vary according to
+        # conditions specified previously, e.g., 'thetaParameters', 'theta', or
+        # 'ancestralTheta'.
+        fixed_thetas_str = params_d.pop("fixedThetas", "")
+        if fixed_thetas_str and fixed_thetas_str != "0":
+            fdt = [float(i.strip()) for i in fixed_thetas_str.split(",")]
+            if len(fdt) != 3:
+                raise ValueError("Expecting 3 values for 'fixedThetas' entry but only found {}".format(len(fdt)))
+            self.fixed_thetas = fdt
+            if "thetaShape" in params_d or "thetaScale" in params_d:
+                raise ValueError("Cannot specify theta prior shape or scale if 'fixedThetas' are specified")
+        else:
+            self.fixed_thetas = None
+            # # Shape and scale of Gamma hyperprior on theta PyMsBayes does not
+            # # independently model N and \mu, but FastsimCoal2 does.
+            self.prior_theta = (
+                    float(params_d.pop("thetaShape")),
+                    float(params_d.pop("thetaScale"))
+                    )
 
         # Shape and scale of Gamma hyperprior on population size.
         # PyMsBayes does not independently model N and \mu. Here we do.
@@ -352,20 +368,6 @@ class SisterBayesModel(object):
             self.fixed_divergence_times = fdt
         else:
             self.fixed_divergence_times = None
-        # Special param for simulation/testing: fixed theta to a particular
-        # value. Either '0' (ignore) or a three comma-separate values.
-        # Values are for deme0, deme1, and ancestral deme, respectively.
-        # Any value of '0' will be ignored (allowed to vary according to
-        # conditions specified previously, e.g., 'thetaParameters', 'theta', or
-        # 'ancestralTheta'.
-        fixed_thetas_str = params_d.pop("fixedThetas", "")
-        if fixed_thetas_str and fixed_thetas_str != "0":
-            fdt = [float(i.strip()) for i in fixed_thetas_str.split(",")]
-            if len(fdt) != 3:
-                raise ValueError("Expecting 3 values for 'fixedThetas' entry but only found {}".format(len(fdt)))
-            self.fixed_thetas = fdt
-        else:
-            self.fixed_thetas = None
         # Done!
         if params_d:
             raise ValueError("Unrecognized parameter configuration entries: {}".format(params_d))
