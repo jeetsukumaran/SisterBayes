@@ -285,7 +285,8 @@ class SisterBayesModel(object):
             # self.tau_parameterization = "uniform"
         else:
             if self.prior_tau[0] == 0 or self.prior_tau[1] == 0:
-                raise ValueError("Must specify either gamma-distributed prior or uniform prior on tau")
+                if "fixedTaus" not in params_d or params_d["fixedTaus"] == "0":
+                    raise ValueError("Must specify either gamma-distributed prior or uniform prior on tau")
             self.tau_parameterization = "gamma"
         # Shape and scale of Gamma hyperprior on
         # divergence times
