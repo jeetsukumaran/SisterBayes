@@ -321,7 +321,7 @@ class SisterBayesSimulator(object):
             self.run_logger.info("Working directory: '{}'".format(self.working_directory))
             self.run_logger.info("Output directory: '{}'".format(os.path.dirname(os.path.abspath(self.output_prefix))))
             self.run_logger.info("Output filename prefix: '{}'".format(os.path.basename(self.output_prefix)))
-        self.fsc2_path = config_d.pop("fsc2_path", "fsc25")
+        self.fsc2_path = config_d.pop("fsc2_path", "fsc")
         if self.is_verbose_setup:
             self.run_logger.info("FastSimCoal2 path: '{}'".format(self.fsc2_path))
         self.rng = config_d.pop("rng", None)

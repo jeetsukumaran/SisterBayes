@@ -33,9 +33,10 @@ setup(
         "bin/sisterbayes-summarize.py",
         ],
     url="http://pypi.python.org/pypi/sisterbayes/",
-    test_suite = "sisterbayes.test",
+    test_suite = "tests",
     license="LICENSE.txt",
     description="A Project",
     long_description=open("README.txt").read(),
+    zip_safe = True,
     # install_requires=[ ],
 )
