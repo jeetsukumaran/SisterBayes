@@ -128,7 +128,7 @@ class SisterBayesSummaryStatsCalculator(object):
         nsites = None
         deme_site_columns = []
         for deme_idx in range(num_demes):
-            deme_sites = zip(*(s.symbols_as_list() for s in deme_sequences[deme_idx]))
+            deme_sites = list(zip(*(s.symbols_as_list() for s in deme_sequences[deme_idx])))
             if nsites is None:
                 nsites = len(deme_sites)
             else:
