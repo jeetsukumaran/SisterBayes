@@ -1,12 +1,22 @@
 #! /usr/bin/env python
 
-
-#from distutils.core import setup
 from setuptools import setup
+import os
 import sys
-from sisterbayes import __version__, __project__
-sys.stderr.write("-setup.py: {} {}\n".format(__project__, __version__))
+import re
 
+def _read(names, **kwargs):
+    path = os.path.join(os.path.dirname(__file__), *names)
+    if sys.version_info.major < 3:
+        return open(path, "rU").read()
+    else:
+        with open(path, encoding=kwargs.get('encoding', 'utf8')) as src:
+            s = src.read()
+        return s
+
+__project__ = "SisterBayes"
+__version__ = re.match(r".*^__version__\s*=\s*['\"](.*?)['\"]\s*$.*", _read(["src", "sisterbayes", "__init__.py"]), re.S | re.M).group(1)
+sys.stderr.write("-setup.py: {} {}\n".format(__project__, __version__))
 
 setup(
     name="sisterbayes",
@@ -14,6 +24,7 @@ setup(
     author="Jeet Sukumaran",
     author_email="jeetsukumaran@gmail.com",
     packages=["sisterbayes"],
+    package_dir={"":"src"},
     scripts=[
         "bin/sisterbayes-simulate.py",
         "bin/sisterbayes-normalize.py",
