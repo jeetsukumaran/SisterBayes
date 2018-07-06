@@ -80,7 +80,6 @@ class Fsc2Handler(object):
             is_store_raw_data=False,
             raw_data_alignment_format="fasta",
             raw_data_tree_format="nexus",
-            fsc2_params_adjustment_hack=None,
             is_debug_mode=False,
             rng=None
             ):
@@ -99,7 +98,6 @@ class Fsc2Handler(object):
         self.is_store_raw_data = is_store_raw_data
         self.raw_data_alignment_format = raw_data_alignment_format
         self.raw_data_tree_format = raw_data_tree_format
-        self.fsc2_params_adjustment_hack = fsc2_params_adjustment_hack
         self.is_debug_mode = is_debug_mode
         self.is_infinite_sites_model = is_infinite_sites_model
         self.is_output_dna_as_snp = False
@@ -338,7 +336,6 @@ class Fsc2Handler(object):
                 nd.edge.length = 0.0
             else:
                 nd.edge.length = float(nd.edge.length)
-            nd.edge.length = nd.edge.length / self.fsc2_params_adjustment_hack
         tree.write(path=path_stem + ".tree.time.{}".format(self.raw_data_tree_format), schema=self.raw_data_tree_format)
         return tree
 

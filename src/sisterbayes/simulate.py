@@ -106,7 +106,6 @@ class SimulationWorker(multiprocessing.Process):
                 raw_data_alignment_format=self.raw_data_alignment_format,
                 raw_data_tree_format=self.raw_data_tree_format,
                 is_debug_mode=self.is_debug_mode,
-                fsc2_params_adjustment_hack=model.fsc2_params_adjustment_hack
                 )
 
     def send_worker_message(self, msg, level):

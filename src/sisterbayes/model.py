@@ -173,7 +173,6 @@ class SisterBayesModel(object):
             self.configure_loci(locus_info) # do this first, so we know the number of sister pairs and loci before working on params
         if params_d is not None:
             self.configure_params(params_d)
-        self.fsc2_params_adjustment_hack = 1E8
 
     def configure_loci(self, locus_info):
         self.label_to_lineage_pair_map = {}
@@ -207,28 +206,43 @@ class SisterBayesModel(object):
         elif "numTauClasses" not in params_d:
             raise ValueError("Concentration shape ('concentrationShape') and scale ('concentrationScale') parameters missing and 'numTauClasses' or 'fixedDivTimeModel' not specified")
 
-        # Special param for simulation/testing: fixed theta to a particular
-        # value. Either '0' (ignore) or a three comma-separate values.
-        # Values are for deme0, deme1, and ancestral deme, respectively.
-        # Any value of '0' will be ignored (allowed to vary according to
-        # conditions specified previously, e.g., 'thetaParameters', 'theta', or
-        # 'ancestralTheta'.
-        fixed_thetas_str = params_d.pop("fixedThetas", "")
-        if fixed_thetas_str and fixed_thetas_str != "0":
-            fdt = [float(i.strip()) for i in fixed_thetas_str.split(",")]
+        fixed_population_sizes_str = params_d.pop("fixedPopulationSizes", "")
+        if fixed_population_sizes_str and fixed_population_sizes_str != "0":
+            # Special param for simulation/testing: fixed populationSize to a particular
+            # value. Either '0' (ignore) or a three comma-separate values.
+            # Values are for deme0, deme1, and ancestral deme, respectively.
+            # Any value of '0' will be ignored (allowed to vary according to
+            # conditions otherwise specified , e.g., 'populationSizeParameters', 'populationSize', or
+            # 'ancestralPopulationSize'.
+            fdt = [float(i.strip()) for i in fixed_population_sizes_str.split(",")]
             if len(fdt) != 3:
-                raise ValueError("Expecting 3 values for 'fixedThetas' entry but only found {}".format(len(fdt)))
-            self.fixed_thetas = fdt
-            if "thetaShape" in params_d or "thetaScale" in params_d:
-                raise ValueError("Cannot specify theta prior shape or scale if 'fixedThetas' are specified")
+                raise ValueError("Expecting 3 values for 'fixedPopulationSizes' entry but only found {}".format(len(fdt)))
+            self.fixed_population_sizes = fdt
+            if "populationSizeShape" in params_d or "populationSizeScale" in params_d:
+                raise ValueError("Cannot specify populationSize prior shape or scale if 'fixedPopulationSizes' are specified")
         else:
-            self.fixed_thetas = None
-            # # Shape and scale of Gamma hyperprior on theta PyMsBayes does not
+            self.fixed_population_sizes = None
+            # # Shape and scale of Gamma hyperprior on populationSize PyMsBayes does not
             # # independently model N and \mu, but FastsimCoal2 does.
-            self.prior_theta = (
-                    float(params_d.pop("thetaShape")),
-                    float(params_d.pop("thetaScale"))
+            self.prior_population_size = (
+                    float(params_d.pop("populationSizeShape")),
+                    float(params_d.pop("populationSizeScale"))
                     )
+
+        if "fixedMutationRate" in params_d:
+            self.fixed_mutation_rate = float(params_d.pop("fixedMutationRate"))
+            if "mutationRateShape" in params_d or "mutationRateScale" in params_d:
+                raise ValueError("Cannot specify mutationRate prior shape or scale if 'fixedMutationRate' is specified")
+            self.prior_mutation_rate = None
+        elif "mutationRateShape" in params_d or "mutationRateScale" in params_d:
+            self.fixed_mutation_rate = None
+            self.prior_mutation_rate = (
+                    float(params_d.pop("mutationRateShape")),
+                    float(params_d.pop("mutationRateScale"))
+                    )
+        else:
+            self.fixed_mutation_rate = 1.0
+            self.prior_mutation_rate = None
 
         # Shape and scale of Gamma hyperprior on population size.
         # PyMsBayes does not independently model N and \mu. Here we do.
@@ -249,17 +263,17 @@ class SisterBayesModel(object):
 
         # Shape and scale of Gamma hyperprior on
         # theta (population) parameters for ancestral deme
-        self.prior_ancestral_theta = (
-                float(params_d.pop("ancestralThetaShape")),
-                float(params_d.pop("ancestralThetaScale"))
+        self.prior_ancestral_population_size = (
+                float(params_d.pop("ancestralPopulationSizeShape")),
+                float(params_d.pop("ancestralPopulationSizeScale"))
                 )
         # specification of fixed/free parameters
-        self.theta_constraints = str(params_d.pop("thetaParameters", "000"))
-        if len(self.theta_constraints) != 3:
-            raise ValueError("Incorrectly specified 'thetaParameters' constraints: '{}'".format(self.theta_constraints))
-        for idx, i in enumerate(self.theta_constraints):
+        self.population_size_constraints = str(params_d.pop("populationSizeParameters", "000"))
+        if len(self.population_size_constraints) != 3:
+            raise ValueError("Incorrectly specified 'populationSizeParameters' constraints: '{}'".format(self.population_size_constraints))
+        for idx, i in enumerate(self.population_size_constraints):
             if i not in ["0", "1", "2"]:
-                raise ValueError("Incorrectly specified 'thetaParameters' constraints: '{}'".format(self.theta_constraints))
+                raise ValueError("Incorrectly specified 'populationSizeParameters' constraints: '{}'".format(self.population_size_constraints))
         # Shape and scale of Gamma hyperprior on
         # divergence times
         self.prior_tau = (
@@ -296,16 +310,6 @@ class SisterBayesModel(object):
                 )
         if self.prior_migration[0] != 0 or self.prior_migration[1] != 0:
             raise NotImplementedError("Migration is not yet supported")
-        # 1: Time units are in expected substitutions per site. For example, a
-        #    divergence of 0.05 means that, on average, 5% of sites have changed
-        #    since the populations diverged (so you expect 10% divergence between
-        #    the populations since the population divergence). Thus, you can
-        #    convert these units to the number of generations or years by dividing
-        #    by the mutation rate.
-        tss = int(params_d.pop("timeInSubsPerSite", 1))
-        self.time_in_subs_per_site = bool(tss)
-        if not self.time_in_subs_per_site:
-            raise NotImplementedError("Time not in expected substitutions per site not supported")
         # If both are positive, these settings define a beta prior on the magnitude of a
         # post-divergence bottleneck in each of the descendant populations.
         # bottleProportionShapeA and bottleProportionShapeB correspond to the shape
@@ -480,84 +484,73 @@ class SisterBayesModel(object):
         for lineage_pair in self.lineage_pairs:
             div_time = lineage_pair_div_times[lineage_pair]
             params["param.divTime.{}".format(lineage_pair.label)] = div_time
-            ## population parameters --- theta parameterization
-            if self.fixed_thetas and self.fixed_thetas[0] > 0:
-                deme0_theta = self.fixed_thetas[0]
+            # ## population parameters --- theta parameterization
+            # if self.fixed_thetas and self.fixed_thetas[0] > 0:
+            #     deme0_theta = self.fixed_thetas[0]
+            # else:
+            #     deme0_theta = rng.gammavariate(*self.prior_theta)
+            # if self.fixed_thetas and self.fixed_thetas[1] > 0:
+            #     deme1_theta = self.fixed_thetas[1]
+            # elif self.theta_constraints[1] == self.theta_constraints[0]:
+            #     deme1_theta = deme0_theta
+            # else:
+            #     deme1_theta = rng.gammavariate(*self.prior_theta)
+            # if self.fixed_thetas and self.fixed_thetas[2] > 0:
+            #     deme2_theta = self.fixed_thetas[2]
+            # elif self.theta_constraints[2] == self.theta_constraints[0]:
+            #     deme2_theta = deme0_theta
+            # elif self.theta_constraints[2] == self.theta_constraints[1]:
+            #     deme2_theta = deme1_theta
+            # elif self.prior_ancestral_theta[0] != 0 and self.prior_ancestral_theta[1] != 0:
+            #     deme2_theta = rng.gammavariate(*self.prior_ancestral_theta)
+            # else:
+            #     deme2_theta = rng.gammavariate(*self.prior_theta)
+            # params["param.theta.{}.{}".format(lineage_pair.label, _DEME0_LABEL)] = deme0_theta
+            # params["param.theta.{}.{}".format(lineage_pair.label, _DEME1_LABEL)] = deme1_theta
+            # params["param.theta.{}.{}".format(lineage_pair.label, _ANCESTOR_DEME_LABEL)] = deme2_theta
+
+            if self.fixed_population_sizes and self.fixed_population_sizes[0] > 0:
+                deme0_population_size = self.fixed_population_sizes[0]
             else:
-                deme0_theta = rng.gammavariate(*self.prior_theta)
-            if self.fixed_thetas and self.fixed_thetas[1] > 0:
-                deme1_theta = self.fixed_thetas[1]
-            elif self.theta_constraints[1] == self.theta_constraints[0]:
-                deme1_theta = deme0_theta
+                deme0_population_size = rng.gammavariate(*self.prior_population_size)
+            if self.fixed_population_sizes and self.fixed_population_sizes[1] > 0:
+                deme1_population_size = self.fixed_population_sizes[1]
+            elif self.population_size_constraints[1] == self.population_size_constraints[0]:
+                deme1_population_size = deme0_population_size
             else:
-                deme1_theta = rng.gammavariate(*self.prior_theta)
-            if self.fixed_thetas and self.fixed_thetas[2] > 0:
-                deme2_theta = self.fixed_thetas[2]
-            elif self.theta_constraints[2] == self.theta_constraints[0]:
-                deme2_theta = deme0_theta
-            elif self.theta_constraints[2] == self.theta_constraints[1]:
-                deme2_theta = deme1_theta
-            elif self.prior_ancestral_theta[0] != 0 and self.prior_ancestral_theta[1] != 0:
-                deme2_theta = rng.gammavariate(*self.prior_ancestral_theta)
+                deme1_population_size = rng.gammavariate(*self.prior_population_size)
+            if self.fixed_population_sizes and self.fixed_population_sizes[2] > 0:
+                deme2_population_size = self.fixed_population_sizes[2]
+            elif self.population_size_constraints[2] == self.population_size_constraints[0]:
+                deme2_population_size = deme0_population_size
+            elif self.population_size_constraints[2] == self.population_size_constraints[1]:
+                deme2_population_size = deme1_population_size
+            elif self.prior_ancestral_population_size[0] != 0 and self.prior_ancestral_population_size[1] != 0:
+                deme2_population_size = rng.gammavariate(*self.prior_ancestral_population_size)
             else:
-                deme2_theta = rng.gammavariate(*self.prior_theta)
-            params["param.theta.{}.{}".format(lineage_pair.label, _DEME0_LABEL)] = deme0_theta
-            params["param.theta.{}.{}".format(lineage_pair.label, _DEME1_LABEL)] = deme1_theta
-            params["param.theta.{}.{}".format(lineage_pair.label, _ANCESTOR_DEME_LABEL)] = deme2_theta
+                deme2_population_size = rng.gammavariate(*self.prior_population_size)
+            params["param.populationSize.{}.{}".format(lineage_pair.label, _DEME0_LABEL)] = deme0_population_size
+            params["param.populationSize.{}.{}".format(lineage_pair.label, _DEME1_LABEL)] = deme1_population_size
+            params["param.populationSize.{}.{}".format(lineage_pair.label, _ANCESTOR_DEME_LABEL)] = deme2_population_size
+
+            if self.fixed_mutation_rate:
+                base_mutation_rate = self.fixed_mutation_rate
+            else:
+                base_mutation_rate = rng.gammavariate(*self.prior_mutation_rate)
+            params["param.mutationRate"] = base_mutation_rate
 
             for locus_id, locus_definition in enumerate(lineage_pair.locus_definitions):
-                #
-                #   Fastsimecoal2 separates pop size and mutation rate, but
-                #   the msBayes/PyMsBayes model does not separate the two,
-                #   using theta.
-                #
-                #   We could just reparameterize the PyMsBayes model here,
-                #   sampling over N and mu independently. But say we want to
-                #   stick to the theta parameterization.
-                #
-                #   ## Scheme 1
-                #
-                #   We could simply scale everything by mutation rate --
-                #   i.e., population size and div time specified in units of
-                #   N * mu, and in the sequence generation assume a base
-                #   mutation rate of 1.0. Problem with this is that
-                #   Fastsimcoal coerces the population size to an integer,
-                #   and so anything less than 1 becomes zero. So we multiply
-                #   the population size time by a large number and adjust
-                #   this in the actual mutation rate so N mu remains the
-                #   same:
-                #
-                #     theta = 4 N mu = 4 * (N * C) * (mu/C)
-                #
-                #   Of course, VERY important to also apply the adjustment
-                #   factor to the divergence time, or, indeed, any other time
-                #   variable!
-                #
-                #   In detail:
-                #   - We "know" theta (because that is how we have parameterized our model and we are sampling theta from the prior)
-                #   - We do not know N and mu -- these are part of theta:
-                #         theta = 4 N mu
-                #   - For fastsimcoal, we need to know N and mu separately
-                #   - We scale everything to a real mutation rate, so *our* mu is an arbitrary 1.0
-                #   - For the fastsimcoal population size, we divide theta by (4 * mu) = 4 to convert
-                #         fsc_N = (theta / (4 * 1.0) * C
-                #     where C is the adjustment factor so that fsc_N > 1.
-                #   - Our tau is expressed in the expected number of substitutions per site =
-                #         = mutation rate (expected number of substitutions per site) * abs_time
-                #   - fastsimcoal tau is expressed in generations, so we divide our tau by mu to convert
-                #     - fsc_tau = (tau / 1.0) * C
-                #
                 mu_factor = (locus_definition.mutation_rate_factor * locus_definition.ploidy_factor)
 
                 fsc2_config_d = {
-                    "d0_population_size": (deme0_theta/4.0 * mu_factor) * self.fsc2_params_adjustment_hack,
-                    "d1_population_size": (deme1_theta/4.0 * mu_factor) * self.fsc2_params_adjustment_hack,
+                    "d0_population_size": deme0_population_size,
+                    "d1_population_size": deme1_population_size,
                     "d0_sample_size": locus_definition.num_genes_deme0,
                     "d1_sample_size": locus_definition.num_genes_deme1,
-                    "div_time": div_time * self.fsc2_params_adjustment_hack, # ditto
+                    "div_time": div_time,
                     "num_sites": locus_definition.num_sites,
                     "recombination_rate": 0,
-                    "mutation_rate":  mu_factor / self.fsc2_params_adjustment_hack,
+                    "mutation_rate":  mu_factor * base_mutation_rate,
                     "ti_proportional_bias": (1.0 * locus_definition.ti_tv_rate_ratio)/3.0,
                     }
                 fsc2_run_configurations[locus_definition] = fsc2_config_d
