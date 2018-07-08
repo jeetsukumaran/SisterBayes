@@ -45,6 +45,7 @@ class SisterBayesSummaryStatsCalculator(object):
         self.supplemental_labels = kwargs.pop("supplemental_labels", None)
         self.alignment_directory_head = kwargs.pop("alignment_directory_head", None)
         self.field_delimiter = kwargs.pop("field_delimiter", "\t")
+        self.is_concatenate_loci = kwargs.pop("is_concatenate_loci", True)
         locus_info = kwargs.pop("locus_info", None)
         params = kwargs.pop("params", None) # ignore
         if locus_info:
@@ -55,7 +56,7 @@ class SisterBayesSummaryStatsCalculator(object):
             raise Exception("Unrecognized configuration entries: {}".format(kwargs))
         self.default_state_alphabet = dendropy.new_standard_state_alphabet("0123456789ACGTU", case_sensitive=False)
 
-    def read_data(self, filepath, datatype, schema):
+    def read_data(self, filepath, datatype, schema, char_mat=None):
         if not os.path.isabs(filepath) and self.alignment_directory_head is not None:
             filepath = os.path.join(self.alignment_directory_head, filepath)
         if datatype == "dna":
@@ -66,6 +67,19 @@ class SisterBayesSummaryStatsCalculator(object):
                     schema=schema,
                     default_state_alphabet=self.default_state_alphabet)
         return data
+
+    def _process_sequences(self, results_d, field_name_prefix, sequences, num_genes_deme0, num_genes_deme1):
+        d0_sequences = sequences[:num_genes_deme0]
+        d1_sequences = sequences[num_genes_deme0:]
+        assert len(d0_sequences) == num_genes_deme0
+        assert len(d1_sequences) == num_genes_deme1
+        assert len(sequences) == num_genes_deme0 + num_genes_deme1
+        jsfs = self.folded_joint_site_frequency_spectrum(
+                d0_sequences=d0_sequences,
+                d1_sequences=d1_sequences,)
+        for row_idx in range(len(jsfs)):
+            for col_idx in range(len(jsfs[row_idx])):
+                results_d["{}.{}.{}".format(field_name_prefix, row_idx, col_idx)] = float(jsfs[row_idx][col_idx])
 
     def write_summary_stats(self,
             dest=None,
@@ -87,17 +101,14 @@ class SisterBayesSummaryStatsCalculator(object):
                         datatype="standard",
                         schema="fasta")
                 sequences = data.sequences()
-                d0_sequences = sequences[:locus_definition.num_genes_deme0]
-                d1_sequences = sequences[locus_definition.num_genes_deme0:]
-                assert len(d0_sequences) == locus_definition.num_genes_deme0
-                assert len(d1_sequences) == locus_definition.num_genes_deme1
-                assert len(sequences) == locus_definition.num_genes_deme0 + locus_definition.num_genes_deme1
-                jsfs = self.folded_joint_site_frequency_spectrum(
-                        d0_sequences=d0_sequences,
-                        d1_sequences=d1_sequences,)
-                for row_idx in range(len(jsfs)):
-                    for col_idx in range(len(jsfs[row_idx])):
-                        results_d["{}.{}.{}".format(field_name_prefix, row_idx, col_idx)] = float(jsfs[row_idx][col_idx])
+                self._process_sequences(
+                        results_d,
+                        field_name_prefix,
+                        sequences=sequences,
+                        num_genes_deme0=locus_definition.num_genes_deme0,
+                        num_genes_deme1=locus_definition.num_genes_deme1,
+                        )
+
         # dest.fieldnames = results_d.keys()
         if is_write_header:
             dest.write(self.field_delimiter.join(results_d.keys()))
