@@ -18,6 +18,30 @@ def main():
     simulator_options.add_argument("configuration_filepath",
             metavar="CONFIGURATION-FILE",
             help="Path to the configuration file listing the data.")
+    processing_options = parser.add_argument_group("Processing Options")
+    processing_options.add_argument(
+            "-U",
+            "--unfolded-site-frequency-spectrum",
+            "--derived-site-frequency-spectrum",
+            action="store_true",
+            default=False,
+            help="Calculate the unfolded or derived site frequency spectrum."
+            " Otherwise, defaults to the folded or minor site frequency"
+            " spectrum."
+            )
+    processing_options.add_argument(
+            "--calculate-single-population-site-frequency-spectrum",
+            action="store_true",
+            default=False,
+            help="Calculate the single (within) population site frequency"
+            " spectrum in addition to the joint."
+            )
+    processing_options.add_argument(
+            "--concatenate-loci",
+            action="store_true",
+            default=False,
+            help="Collapse all loci and treat as a single locus for calculation."
+            )
     output_options = parser.add_argument_group("Output Options")
     output_options.add_argument('-o', '--output-name-prefix',
             action='store',
@@ -33,23 +57,6 @@ def main():
             default=None,
             metavar='DIRECTORY',
             help="Directory for output files (default: current working directory).")
-    output_options.add_argument(
-            "-U",
-            "--unfolded-site-frequency-spectrum",
-            "--derived-site-frequency-spectrum",
-            action="store_true",
-            default=False,
-            help="Calculate the unfolded or derived site frequency spectrum."
-            " Otherwise, defaults to the folded or minor site frequency"
-            " spectrum."
-            )
-    output_options.add_argument(
-            "--calculate-single-population-site-frequency-spectrum",
-            action="store_true",
-            default=False,
-            help="Calculate the single (within) population site frequency"
-            " spectrum in addition to the joint."
-            )
     output_options.add_argument("-l", "--labels",
             action="append",
             help="Addition field/value pairs to add to the output (in format <FIELD-NAME>:value;)")
@@ -88,6 +95,7 @@ def main():
     config_d["supplemental_labels"] = utility.parse_fieldname_and_value(args.labels)
     config_d["alignment_directory_head"] = os.path.dirname(os.path.abspath(args.configuration_filepath))
     config_d["field_delimiter"] = args.field_delimiter
+    config_d["is_concatenate_loci"] = args.concatenate_loci
 
     sscalc = sumstats.SisterBayesSummaryStatsCalculator(**config_d)
     filepath = config_d["output_prefix"] + ".obs.sumstats.tsv"

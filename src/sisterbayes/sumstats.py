@@ -99,7 +99,7 @@ class SisterBayesSummaryStatsCalculator(object):
                 field_name_prefix="{}.{}.{}.joint.sfs".format(
                         self.stat_label_prefix,
                         lineage_pair.label,
-                        "concatenated{}".format(len(lineage_pair.locus_definitions)),
+                        "concat{}".format(len(lineage_pair.locus_definitions)),
                         )
                 num_genes_deme0 = None
                 num_genes_deme1 = None
@@ -125,7 +125,7 @@ class SisterBayesSummaryStatsCalculator(object):
                         num_genes_deme0=num_genes_deme0,
                         num_genes_deme1=num_genes_deme1,
                         )
-        else:
+            else:
                 for locus_definition in lineage_pair.locus_definitions:
                     field_name_prefix="{}.{}.{}.joint.sfs".format(
                             self.stat_label_prefix,
@@ -143,24 +143,12 @@ class SisterBayesSummaryStatsCalculator(object):
                             num_genes_deme0=locus_definition.num_genes_deme0,
                             num_genes_deme1=locus_definition.num_genes_deme1,
                             )
-
-        # dest.fieldnames = results_d.keys()
         if is_write_header:
             dest.write(self.field_delimiter.join(results_d.keys()))
             dest.write("\n")
         dest.write(self.field_delimiter.join("{}".format(v) for v in results_d.values()))
         dest.write("\n")
-                # self.fsc2_handler.run(
-                #         field_name_prefix="{}.{}.{}".format(
-                #                 self.stat_label_prefix,
-                #                 lineage_pair.label,
-                #                 locus_definition.locus_label),
-                #         fsc2_config_d=fsc2_run_configurations[locus_definition],
-                #         random_seed=self.rng.randint(1, 1E6),
-                #         results_d=results_d,
-                #         )
         return results_d
-
 
     def folded_joint_site_frequency_spectrum(self,
             d0_sequences,
