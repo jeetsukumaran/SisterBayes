@@ -45,7 +45,7 @@ class SisterBayesSummaryStatsCalculator(object):
         self.supplemental_labels = kwargs.pop("supplemental_labels", None)
         self.alignment_directory_head = kwargs.pop("alignment_directory_head", None)
         self.field_delimiter = kwargs.pop("field_delimiter", "\t")
-        self.is_concatenate_loci = kwargs.pop("is_concatenate_loci", True)
+        self.is_concatenate_loci = kwargs.pop("is_concatenate_loci", False)
         locus_info = kwargs.pop("locus_info", None)
         params = kwargs.pop("params", None) # ignore
         if locus_info:
@@ -56,15 +56,19 @@ class SisterBayesSummaryStatsCalculator(object):
             raise Exception("Unrecognized configuration entries: {}".format(kwargs))
         self.default_state_alphabet = dendropy.new_standard_state_alphabet("0123456789ACGTU", case_sensitive=False)
 
-    def read_data(self, filepath, datatype, schema, char_mat=None):
+    def read_data(self, filepath, datatype, schema, taxon_namespace=None):
         if not os.path.isabs(filepath) and self.alignment_directory_head is not None:
             filepath = os.path.join(self.alignment_directory_head, filepath)
         if datatype == "dna":
-            data = dendropy.DnaCharacterMatrix.get(path=filepath, schema=schema)
+            data = dendropy.DnaCharacterMatrix.get(
+                    path=filepath,
+                    schema=schema,
+                    taxon_namespace=taxon_namespace)
         elif datatype == "standard" or datatype == "snp":
             data = dendropy.StandardCharacterMatrix.get(
                     path=filepath,
                     schema=schema,
+                    taxon_namespace=taxon_namespace,
                     default_state_alphabet=self.default_state_alphabet)
         return data
 
@@ -91,23 +95,54 @@ class SisterBayesSummaryStatsCalculator(object):
             for key in self.supplemental_labels:
                 results_d[key] = self.supplemental_labels[key]
         for lineage_pair_idx, lineage_pair in enumerate(self.model.lineage_pairs):
-            for locus_definition in lineage_pair.locus_definitions:
+            if self.is_concatenate_loci:
                 field_name_prefix="{}.{}.{}.joint.sfs".format(
                         self.stat_label_prefix,
                         lineage_pair.label,
-                        locus_definition.locus_label)
-                data = self.read_data(
-                        filepath=locus_definition.alignment_filepath,
-                        datatype="standard",
-                        schema="fasta")
-                sequences = data.sequences()
+                        "concatenated{}".format(len(lineage_pair.locus_definitions)),
+                        )
+                num_genes_deme0 = None
+                num_genes_deme1 = None
+                master_data = dendropy.StandardCharacterMatrix(default_state_alphabet=self.default_state_alphabet)
+                for locus_idx, locus_definition in enumerate(lineage_pair.locus_definitions):
+                    if num_genes_deme0 is None:
+                        num_genes_deme0 = locus_definition.num_genes_deme0
+                        num_genes_deme1 = locus_definition.num_genes_deme1
+                    else:
+                        if (num_genes_deme0 != locus_definition.num_genes_deme0) or (num_genes_deme0 != locus_definition.num_genes_deme0):
+                            raise ValueError("Cannot concatenate loci if number of samples per deme vary across loci")
+                    data = self.read_data(
+                            filepath=locus_definition.alignment_filepath,
+                            datatype="standard",
+                            schema="fasta",
+                            taxon_namespace=master_data.taxon_namespace)
+                    master_data.extend_sequences(data, is_add_new_sequences=True)
+                sequences = master_data.sequences()
                 self._process_sequences(
                         results_d,
                         field_name_prefix,
                         sequences=sequences,
-                        num_genes_deme0=locus_definition.num_genes_deme0,
-                        num_genes_deme1=locus_definition.num_genes_deme1,
+                        num_genes_deme0=num_genes_deme0,
+                        num_genes_deme1=num_genes_deme1,
                         )
+        else:
+                for locus_definition in lineage_pair.locus_definitions:
+                    field_name_prefix="{}.{}.{}.joint.sfs".format(
+                            self.stat_label_prefix,
+                            lineage_pair.label,
+                            locus_definition.locus_label)
+                    data = self.read_data(
+                            filepath=locus_definition.alignment_filepath,
+                            datatype="standard",
+                            schema="fasta")
+                    sequences = data.sequences()
+                    self._process_sequences(
+                            results_d,
+                            field_name_prefix,
+                            sequences=sequences,
+                            num_genes_deme0=locus_definition.num_genes_deme0,
+                            num_genes_deme1=locus_definition.num_genes_deme1,
+                            )
 
         # dest.fieldnames = results_d.keys()
         if is_write_header:
