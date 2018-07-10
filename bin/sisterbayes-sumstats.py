@@ -37,6 +37,12 @@ def main():
             " spectrum in addition to the joint."
             )
     processing_options.add_argument(
+            "--normalize-by-site-counts",
+            action="store_true",
+            default=False,
+            help="Normalize frequency spectrum by number of sites in each locus."
+            )
+    processing_options.add_argument(
             "--concatenate-loci",
             action="store_true",
             default=False,
@@ -80,7 +86,7 @@ def main():
 
     args = parser.parse_args()
 
-    config_d = {}
+    config_d = utility.CaseInsensitiveDict()
     utility.parse_legacy_configuration(
             filepath=args.configuration_filepath,
             config_d=config_d)
@@ -96,6 +102,7 @@ def main():
     config_d["alignment_directory_head"] = os.path.dirname(os.path.abspath(args.configuration_filepath))
     config_d["field_delimiter"] = args.field_delimiter
     config_d["is_concatenate_loci"] = args.concatenate_loci
+    config_d["is_normalize"] = args.normalize_by_site_counts
 
     sscalc = sumstats.SisterBayesSummaryStatsCalculator(**config_d)
     filepath = config_d["output_prefix"] + ".obs.sumstats.tsv"

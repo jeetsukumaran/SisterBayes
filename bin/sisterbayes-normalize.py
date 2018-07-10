@@ -128,7 +128,7 @@ def main():
             help="Work silently.")
     args = parser.parse_args()
     run_logger = utility.RunLogger(
-            name="sisterbayes-estimate",
+            name="sisterbayes-normalize",
             stderr_logging_level="info",
             log_to_stderr=not args.quiet,
             log_to_file=False,

@@ -46,6 +46,7 @@ class SisterBayesSummaryStatsCalculator(object):
         self.alignment_directory_head = kwargs.pop("alignment_directory_head", None)
         self.field_delimiter = kwargs.pop("field_delimiter", "\t")
         self.is_concatenate_loci = kwargs.pop("is_concatenate_loci", False)
+        self.is_normalize = kwargs.pop("is_normalize", False)
         locus_info = kwargs.pop("locus_info", None)
         params = kwargs.pop("params", None) # ignore
         if locus_info:
@@ -72,7 +73,14 @@ class SisterBayesSummaryStatsCalculator(object):
                     default_state_alphabet=self.default_state_alphabet)
         return data
 
-    def _process_sequences(self, results_d, field_name_prefix, sequences, num_genes_deme0, num_genes_deme1):
+    def _process_sequences(
+            self,
+            results_d,
+            field_name_prefix,
+            sequences,
+            num_genes_deme0,
+            num_genes_deme1,
+            nsites):
         d0_sequences = sequences[:num_genes_deme0]
         d1_sequences = sequences[num_genes_deme0:]
         assert len(d0_sequences) == num_genes_deme0
@@ -83,7 +91,12 @@ class SisterBayesSummaryStatsCalculator(object):
                 d1_sequences=d1_sequences,)
         for row_idx in range(len(jsfs)):
             for col_idx in range(len(jsfs[row_idx])):
-                results_d["{}.{}.{}".format(field_name_prefix, row_idx, col_idx)] = float(jsfs[row_idx][col_idx])
+                raw_count = float(jsfs[row_idx][col_idx])
+                if self.is_normalize:
+                    result_value = float(raw_count) / nsites
+                else:
+                    result_value = raw_count
+                results_d["{}.{}.{}".format(field_name_prefix, row_idx, col_idx)] = result_value
 
     def write_summary_stats(self,
             dest=None,
@@ -103,6 +116,7 @@ class SisterBayesSummaryStatsCalculator(object):
                         )
                 num_genes_deme0 = None
                 num_genes_deme1 = None
+                nsites = 0
                 master_data = dendropy.StandardCharacterMatrix(default_state_alphabet=self.default_state_alphabet)
                 for locus_idx, locus_definition in enumerate(lineage_pair.locus_definitions):
                     if num_genes_deme0 is None:
@@ -116,6 +130,7 @@ class SisterBayesSummaryStatsCalculator(object):
                             datatype="standard",
                             schema="fasta",
                             taxon_namespace=master_data.taxon_namespace)
+                    nsites += locus_definition.num_sites
                     master_data.extend_sequences(data, is_add_new_sequences=True)
                 sequences = master_data.sequences()
                 self._process_sequences(
@@ -124,6 +139,7 @@ class SisterBayesSummaryStatsCalculator(object):
                         sequences=sequences,
                         num_genes_deme0=num_genes_deme0,
                         num_genes_deme1=num_genes_deme1,
+                        nsites=nsites,
                         )
             else:
                 for locus_definition in lineage_pair.locus_definitions:
@@ -142,6 +158,7 @@ class SisterBayesSummaryStatsCalculator(object):
                             sequences=sequences,
                             num_genes_deme0=locus_definition.num_genes_deme0,
                             num_genes_deme1=locus_definition.num_genes_deme1,
+                            nsites=locus_definition.num_sites,
                             )
         if is_write_header:
             dest.write(self.field_delimiter.join(results_d.keys()))
