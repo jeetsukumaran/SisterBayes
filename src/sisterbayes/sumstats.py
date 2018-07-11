@@ -46,6 +46,7 @@ class SisterBayesSummaryStatsCalculator(object):
         self.alignment_directory_head = kwargs.pop("alignment_directory_head", None)
         self.field_delimiter = kwargs.pop("field_delimiter", "\t")
         self.is_concatenate_loci = kwargs.pop("is_concatenate_loci", False)
+        self.concatenated_locus_label = kwargs.pop("concatenated_locus_label", None)
         self.is_normalize = kwargs.pop("is_normalize", False)
         locus_info = kwargs.pop("locus_info", None)
         params = kwargs.pop("params", None) # ignore
@@ -109,10 +110,14 @@ class SisterBayesSummaryStatsCalculator(object):
                 results_d[key] = self.supplemental_labels[key]
         for lineage_pair_idx, lineage_pair in enumerate(self.model.lineage_pairs):
             if self.is_concatenate_loci:
+                if self.concatenated_locus_label:
+                    concatenated_locus_label = self.concatenated_locus_label
+                else:
+                    concatenated_locus_label = "concat{}".format(len(lineage_pair.locus_definitions)),
                 field_name_prefix="{}.{}.{}.joint.sfs".format(
                         self.stat_label_prefix,
                         lineage_pair.label,
-                        "concat{}".format(len(lineage_pair.locus_definitions)),
+                        concatenated_locus_label,
                         )
                 num_genes_deme0 = None
                 num_genes_deme1 = None

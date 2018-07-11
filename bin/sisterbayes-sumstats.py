@@ -48,6 +48,11 @@ def main():
             default=False,
             help="Collapse all loci and treat as a single locus for calculation."
             )
+    processing_options.add_argument(
+            "--concatenated-locus-label",
+            default=None,
+            help="If concatenating, label for the concatenated locus."
+            )
     output_options = parser.add_argument_group("Output Options")
     output_options.add_argument('-o', '--output-name-prefix',
             action='store',
@@ -102,6 +107,7 @@ def main():
     config_d["alignment_directory_head"] = os.path.dirname(os.path.abspath(args.configuration_filepath))
     config_d["field_delimiter"] = args.field_delimiter
     config_d["is_concatenate_loci"] = args.concatenate_loci
+    config_d["concatenated_locus_label"] = args.concatenated_locus_label
     config_d["is_normalize"] = args.normalize_by_site_counts
 
     sscalc = sumstats.SisterBayesSummaryStatsCalculator(**config_d)
