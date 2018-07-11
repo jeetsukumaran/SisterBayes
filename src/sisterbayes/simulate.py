@@ -65,6 +65,7 @@ class SimulationWorker(multiprocessing.Process):
             is_calculate_joint_population_sfs,
             is_unfolded_site_frequency_spectrum,
             is_infinite_sites_model,
+            is_normalize_by_site_counts,
             stat_label_prefix,
             is_include_model_id_field,
             supplemental_labels,
@@ -94,6 +95,7 @@ class SimulationWorker(multiprocessing.Process):
         self.raw_data_output_prefix = raw_data_output_prefix
         self.raw_data_alignment_format = raw_data_alignment_format
         self.raw_data_tree_format = raw_data_tree_format
+        self.is_normalize_by_site_counts = is_normalize_by_site_counts,
         self.fsc2_handler = fsc2.Fsc2Handler(
                 name=name,
                 fsc2_path=fsc2_path,
@@ -186,9 +188,10 @@ class SimulationWorker(multiprocessing.Process):
                         fsc2_config_d=fsc2_run_configurations[locus_definition],
                         random_seed=self.rng.randint(1, 1E6),
                         results_d=results_d,
+                        is_normalize_by_site_counts=self.is_normalize_by_site_counts,
                         raw_data_output_prefix="{}.{:04d}".format(self.raw_data_output_prefix, rep_idx+1),
-                        lineage_pair=lineage_pair, # only needed for raw data output path composition
-                        locus_definition=locus_definition, # only needed for raw data output path composition
+                        lineage_pair=lineage_pair, # only needed for normalization or raw data output path composition
+                        locus_definition=locus_definition, # only needed for normalization or raw data output path composition
                         )
         if self.is_include_model_id_field:
             results_d["model.id"] = results_d["param.divTimeModel"]
@@ -344,6 +347,7 @@ class SisterBayesSimulator(object):
         self.is_calculate_single_population_sfs = config_d.pop("is_calculate_single_population_sfs", False)
         self.is_calculate_joint_population_sfs = config_d.pop("is_calculate_joint_population_sfs", True)
         self.is_infinite_sites_model = config_d.pop("is_infinite_sites_model", False)
+        self.is_normalize_by_site_counts = config_d.pop("is_normalize_by_site_counts", False)
         if not self.is_calculate_single_population_sfs and not self.is_calculate_joint_population_sfs:
             raise ValueError("Neither single-population nor joint site frequency spectrum will be calculated!")
         self.stat_label_prefix = config_d.pop("stat_label_prefix", "stat")
@@ -416,6 +420,7 @@ class SisterBayesSimulator(object):
                     is_calculate_joint_population_sfs=self.is_calculate_joint_population_sfs,
                     is_unfolded_site_frequency_spectrum=self.is_unfolded_site_frequency_spectrum,
                     is_infinite_sites_model=self.is_infinite_sites_model,
+                    is_normalize_by_site_counts=self.is_normalize_by_site_counts,
                     stat_label_prefix=self.stat_label_prefix,
                     is_include_model_id_field=self.is_include_model_id_field,
                     supplemental_labels=self.supplemental_labels,

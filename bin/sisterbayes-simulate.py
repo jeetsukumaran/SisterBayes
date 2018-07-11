@@ -56,6 +56,12 @@ def main():
             help="Calculate the single (within) population site frequency"
             " spectrum in addition to the joint."
             )
+    output_options.add_argument(
+            "--normalize-by-site-counts",
+            action="store_true",
+            default=False,
+            help="Normalize frequency spectrum by number of sites in each locus."
+            )
     output_options.add_argument("-l", "--labels",
             action="append",
             help="Addition field/value pairs to add to the output (in format <FIELD-NAME>:value;)")
@@ -185,6 +191,7 @@ def main():
     config_d["supplemental_labels"] = utility.parse_fieldname_and_value(args.labels)
     config_d["field_delimiter"] = args.field_delimiter
     config_d["is_include_model_id_field"] = args.include_model_id_field
+    config_d["is_normalize_by_site_counts"] = args.normalize_by_site_counts
     with utility.TemporaryDirectory(
             prefix="sisterbayes-",
             parent_dir=args.working_directory_parent,

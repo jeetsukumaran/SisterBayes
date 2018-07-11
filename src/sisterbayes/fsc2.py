@@ -199,6 +199,9 @@ class Fsc2Handler(object):
     def _parse_deme_site_frequencies(self,
             filepath,
             field_name_prefix,
+            is_normalize_by_site_counts,
+            lineage_pair,
+            locus_definition,
             results_d):
         with utility.universal_open(filepath) as src:
             lines = src.read().split("\n")
@@ -209,12 +212,19 @@ class Fsc2Handler(object):
             for key, val in zip(header_row, results_d_row):
                 if not val:
                     continue
-                results_d["{}.{}".format(field_name_prefix, key)] = float(val)
+                key = "{}.{}".format(field_name_prefix, key)
+                val = float(val)
+                if is_normalize_by_site_counts:
+                    val = val / locus_definition.num_sites
+                results_d[key] = val
         return results_d
 
     def _parse_joint_site_frequencies(self,
             filepath,
             field_name_prefix,
+            is_normalize_by_site_counts,
+            lineage_pair,
+            locus_definition,
             results_d):
         with utility.universal_open(filepath) as src:
             lines = src.read().split("\n")
@@ -235,25 +245,42 @@ class Fsc2Handler(object):
                 col_idx = 0
                 for col_key, val in zip(col_keys, cols[1:]):
                     # results_d["{}.{}.{}".format(field_name_prefix, row_key, col_key)] = float(val)
-                    results_d["{}.{}.{}".format(field_name_prefix, row_idx, col_idx)] = float(val)
+                    val = float(val)
+                    if is_normalize_by_site_counts:
+                        val = val / locus_definition.num_sites
+                    results_d["{}.{}.{}".format(field_name_prefix, row_idx, col_idx)] = val
                     col_idx += 1
                 row_idx += 1
         return results_d
 
-    def _harvest_run_results(self, field_name_prefix, results_d):
+    def _harvest_run_results(self,
+            field_name_prefix,
+            is_normalize_by_site_counts,
+            lineage_pair,
+            locus_definition,
+            results_d):
         if self.is_calculate_single_population_sfs:
             self._parse_deme_site_frequencies(
                     filepath=self.deme0_site_frequency_filepath,
                     field_name_prefix="{}.{}.sfs".format(field_name_prefix, compose_deme_label(0)),
+                    is_normalize_by_site_counts=is_normalize_by_site_counts,
+                    lineage_pair=lineage_pair,
+                    locus_definition=locus_definition,
                     results_d=results_d)
             self._parse_deme_site_frequencies(
                     filepath=self.deme1_site_frequency_filepath,
                     field_name_prefix="{}.{}.sfs".format(field_name_prefix, compose_deme_label(1)),
+                    is_normalize_by_site_counts=is_normalize_by_site_counts,
+                    lineage_pair=lineage_pair,
+                    locus_definition=locus_definition,
                     results_d=results_d)
         if self.is_calculate_joint_population_sfs:
             self._parse_joint_site_frequencies(
                     filepath=self.joint_site_frequency_filepath,
                     field_name_prefix="{}.joint.sfs".format(field_name_prefix),
+                    is_normalize_by_site_counts=is_normalize_by_site_counts,
+                    lineage_pair=lineage_pair,
+                    locus_definition=locus_definition,
                     results_d=results_d)
         return results_d
 
@@ -379,6 +406,7 @@ class Fsc2Handler(object):
             fsc2_config_d,
             random_seed,
             results_d,
+            is_normalize_by_site_counts=False,
             raw_data_output_prefix=None,
             lineage_pair=None,
             locus_definition=None,
@@ -414,6 +442,9 @@ class Fsc2Handler(object):
             results_d = collections.OrderedDict()
         self._harvest_run_results(
                 field_name_prefix=field_name_prefix,
+                is_normalize_by_site_counts=is_normalize_by_site_counts,
+                lineage_pair=lineage_pair,
+                locus_definition=locus_definition,
                 results_d=results_d)
         if self.is_store_raw_data:
             self._store_raw_results(
