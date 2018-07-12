@@ -38,6 +38,7 @@ class SisterBayesRejector(object):
         self.stat_fieldnames_check = None
         self.non_stat_fieldnames = None
         self.distance_score_fieldname = "rejection.score"
+        self.normalized_distance_score_fieldname = "rejection.score.normalized"
 
     def euclidean_distance(self, vector1, vector2):
         assert len(vector1) == len(vector2)
@@ -138,6 +139,7 @@ class SisterBayesRejector(object):
                                     header_row.append(fn)
                             if self.is_write_rejection_score:
                                 header_row.append(self.distance_score_fieldname)
+                                header_row.append(self.normalized_distance_score_fieldname)
                             dest.write("{}\n".format(self.field_delimiter.join(header_row)))
                         else:
                             current_file_fieldnames = set(priors_data_reader.fieldnames)
@@ -151,9 +153,29 @@ class SisterBayesRejector(object):
                                     priors_data_filepath, ", ".join(s2)))
                     prior_data_vector = self.extract_stats_data_vector_from_csv_row(row)
                     distance_score = self.euclidean_distance(target_data_vector, prior_data_vector)
+
                     row_values = self.field_delimiter.join(row[fn] for fn in priors_data_reader.fieldnames if self.is_write_summary_stats or fn not in self.stat_fieldnames_set)
                     if self.is_write_rejection_score:
                         row_values = "{}{}{}".format(row_values, self.field_delimiter, distance_score)
+                        # Normalize by number of comparisons
+                        # How do we get this?
+                        # Consider the following vectors:
+                        #   > x1 = c(3.1, 3.1, 3.1)
+                        #   > x2 = c(5.1, 5.1, 5.1)
+                        #   > y1 = c(3.1, 3.1, 3.1, 3.1, 3.1)
+                        #   > y2 = c(5.1, 5.1, 5.1, 5.1, 5.1)
+                        # The naive/raw Euclidean distances are different, due to the different number of comparisons:
+                        #   > sqrt(sum((x2-x1)**2))
+                        #   [1] 3.464102
+                        #   > sqrt(sum((y2-y1)**2))
+                        #   [1] 4.472136
+                        # But dividing the be sqrt of the length of the vectors makes them equal:
+                        #   > sqrt(sum((x2-x1)**2)) / sqrt(3)
+                        #   [1] 2
+                        #   > sqrt(sum((y2-y1)**2)) / sqrt(5)
+                        #   [1] 2
+                        normalized_distance_score = distance_score / math.sqrt(len(target_data_vector))
+                        row_values = "{}{}{}".format(row_values, self.field_delimiter, normalized_distance_score)
                     heap_score = -1 * (distance_score)
                     heap_entry = (heap_score, row_values)
                     if self.rejection_criteria_type == "distance":
