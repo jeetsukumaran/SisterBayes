@@ -10,6 +10,13 @@ import collections
 import sisterbayes
 from sisterbayes import utility
 
+class SisterBayesRejectorStatsVectorSizeException(Exception):
+    pass
+
+class SisterBayesRejectorStatsVectorValueException(ValueError):
+    pass
+
+
 class SisterBayesRejector(object):
 
     def __init__(self,
@@ -23,6 +30,7 @@ class SisterBayesRejector(object):
             is_write_rejection_score=False,
             is_output_target_params=False,
             is_suppress_checks=False,
+            is_ignore_invalid_priors_data_vectors=False,
             ):
         self.rejection_criteria_type = rejection_criteria_type
         self.rejection_criteria_value = rejection_criteria_value
@@ -34,6 +42,7 @@ class SisterBayesRejector(object):
         self.is_write_rejection_score = is_write_rejection_score
         self.is_output_target_params = is_output_target_params
         self.is_suppress_checks = is_suppress_checks
+        self.is_ignore_invalid_priors_data_vectors = is_ignore_invalid_priors_data_vectors
         self.stat_fieldnames = None
         self.stat_fieldnames_check = None
         self.non_stat_fieldnames = None
@@ -59,7 +68,12 @@ class SisterBayesRejector(object):
         return stat_fieldnames, non_stat_fieldnames
 
     def extract_stats_data_vector_from_csv_row(self, row):
-        data_vector = [float(v) for v in (row[k] for k in self.stat_fieldnames)]
+        try:
+            data_vector = [float(v) for v in (row[k] for k in self.stat_fieldnames)]
+        except ValueError:
+            raise SisterBayesRejectorStatsVectorValueException()
+        if len(data_vector) != len(self.stat_fieldnames_set):
+            raise SisterBayesRejectorStatsVectorSizeException()
         return data_vector
 
     def process(self,
@@ -151,7 +165,18 @@ class SisterBayesRejector(object):
                             if s2:
                                 raise ValueError("File '{}': Following fields found in previous files, but not found here: {}".format(
                                     priors_data_filepath, ", ".join(s2)))
-                    prior_data_vector = self.extract_stats_data_vector_from_csv_row(row)
+                    try:
+                        prior_data_vector = self.extract_stats_data_vector_from_csv_row(row)
+                    except SisterBayesRejectorStatsVectorValueException:
+                        if self.is_ignore_invalid_priors_data_vectors:
+                            continue
+                        else:
+                            raise
+                    except SisterBayesRejectorStatsVectorSizeException:
+                        if self.is_ignore_invalid_priors_data_vectors:
+                            continue
+                        else:
+                            raise
                     distance_score = self.euclidean_distance(target_data_vector, prior_data_vector)
 
                     row_values = self.field_delimiter.join(row[fn] for fn in priors_data_reader.fieldnames if self.is_write_summary_stats or fn not in self.stat_fieldnames_set)
@@ -289,6 +314,12 @@ def main():
         type=str,
         default="stat",
         help="Prefix identifying summary statistic fields (default: '%(default)s').")
+    processing_options.add_argument(
+            "--ignore-invalid-priors-data-vectors",
+            dest="is_ignore_invalid_priors_data_vectors",
+            action="store_true",
+            default=False,
+            help="Ignore invalid vectors (in priors).")
     output_options = parser.add_argument_group("Output Options")
     output_options.add_argument('-o', '--output-name-prefix',
             action='store',
@@ -368,6 +399,7 @@ def main():
             field_delimiter=args.field_delimiter,
             is_write_summary_stats=args.write_summary_stats,
             is_write_rejection_score=args.write_rejection_score,
+            is_ignore_invalid_priors_data_vectors=args.is_ignore_invalid_priors_data_vectors,
             is_output_target_params=args.output_target_params,
             )
     rejector.process(
