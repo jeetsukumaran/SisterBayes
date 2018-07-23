@@ -98,9 +98,9 @@ class Fsc2Handler(object):
             self.fsc2_sfs_generation_command = "-m"
         self.is_calculate_single_population_sfs = is_calculate_single_population_sfs
         self.is_calculate_joint_population_sfs = is_calculate_joint_population_sfs
-        self.is_store_raw_alignment=is_store_raw_alignment,
-        self.is_store_raw_mutation_tree=is_store_raw_mutation_tree,
-        self.is_store_raw_true_tree=is_store_raw_true_tree,
+        self.is_store_raw_alignment = is_store_raw_alignment
+        self.is_store_raw_mutation_tree = is_store_raw_mutation_tree
+        self.is_store_raw_true_tree = is_store_raw_true_tree
         if self.is_store_raw_alignment or self.is_store_raw_mutation_tree or self.is_store_raw_true_tree:
             self.is_store_raw_data = True
         self.raw_data_alignment_format = raw_data_alignment_format

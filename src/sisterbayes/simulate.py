@@ -275,9 +275,9 @@ class SisterBayesSimulator(object):
         else:
             self.package_id = package_id
         self.elapsed_time = 0.0 # need to be here for logging
-        self.is_store_raw_alignment=is_store_raw_alignment,
-        self.is_store_raw_mutation_tree=is_store_raw_mutation_tree,
-        self.is_store_raw_true_tree=is_store_raw_true_tree,
+        self.is_store_raw_alignment = is_store_raw_alignment
+        self.is_store_raw_mutation_tree = is_store_raw_mutation_tree
+        self.is_store_raw_true_tree = is_store_raw_true_tree
         self.raw_data_output_prefix = raw_data_output_prefix
         self.raw_data_alignment_format = raw_data_alignment_format
         self.raw_data_tree_format = raw_data_tree_format

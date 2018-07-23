@@ -218,6 +218,9 @@ def main():
         is_store_raw_mutation_tree = True
     if args.raw_data_true_tree:
         is_store_raw_true_tree = True
+    print(is_store_raw_alignment)
+    print(is_store_raw_mutation_tree)
+    print(is_store_raw_true_tree)
     with utility.TemporaryDirectory(
             prefix="sisterbayes-",
             parent_dir=args.working_directory_parent,
