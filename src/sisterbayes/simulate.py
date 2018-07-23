@@ -70,7 +70,9 @@ class SimulationWorker(multiprocessing.Process):
             is_include_model_id_field,
             supplemental_labels,
             is_debug_mode,
-            is_store_raw_data,
+            is_store_raw_alignment,
+            is_store_raw_mutation_tree,
+            is_store_raw_true_tree,
             raw_data_output_prefix,
             raw_data_alignment_format,
             raw_data_tree_format,
@@ -91,7 +93,9 @@ class SimulationWorker(multiprocessing.Process):
         self.kill_received = False
         self.num_tasks_received = 0
         self.num_tasks_completed = 0
-        self.is_store_raw_data = is_store_raw_data
+        self.is_store_raw_alignment = is_store_raw_alignment
+        self.is_store_raw_mutation_tree = is_store_raw_mutation_tree
+        self.is_store_raw_true_tree = is_store_raw_true_tree
         self.raw_data_output_prefix = raw_data_output_prefix
         self.raw_data_alignment_format = raw_data_alignment_format
         self.raw_data_tree_format = raw_data_tree_format
@@ -104,7 +108,9 @@ class SimulationWorker(multiprocessing.Process):
                 is_calculate_joint_population_sfs=is_calculate_joint_population_sfs,
                 is_unfolded_site_frequency_spectrum=is_unfolded_site_frequency_spectrum,
                 is_infinite_sites_model=is_infinite_sites_model,
-                is_store_raw_data=self.is_store_raw_data,
+                is_store_raw_alignment=self.is_store_raw_alignment,
+                is_store_raw_mutation_tree=self.is_store_raw_mutation_tree,
+                is_store_raw_true_tree=self.is_store_raw_true_tree,
                 raw_data_alignment_format=self.raw_data_alignment_format,
                 raw_data_tree_format=self.raw_data_tree_format,
                 is_debug_mode=self.is_debug_mode,
@@ -255,7 +261,9 @@ class SisterBayesSimulator(object):
             logging_frequency=1000,
             package_id=None,
             is_verbose_setup=True,
-            is_store_raw_data=False,
+            is_store_raw_alignment=False,
+            is_store_raw_mutation_tree=False,
+            is_store_raw_true_tree=False,
             raw_data_output_prefix=None,
             raw_data_alignment_format="fasta",
             raw_data_tree_format="nexus",
@@ -267,7 +275,9 @@ class SisterBayesSimulator(object):
         else:
             self.package_id = package_id
         self.elapsed_time = 0.0 # need to be here for logging
-        self.is_store_raw_data = is_store_raw_data
+        self.is_store_raw_alignment=is_store_raw_alignment,
+        self.is_store_raw_mutation_tree=is_store_raw_mutation_tree,
+        self.is_store_raw_true_tree=is_store_raw_true_tree,
         self.raw_data_output_prefix = raw_data_output_prefix
         self.raw_data_alignment_format = raw_data_alignment_format
         self.raw_data_tree_format = raw_data_tree_format
@@ -425,7 +435,9 @@ class SisterBayesSimulator(object):
                     is_include_model_id_field=self.is_include_model_id_field,
                     supplemental_labels=self.supplemental_labels,
                     is_debug_mode=self.is_debug_mode,
-                    is_store_raw_data=self.is_store_raw_data,
+                    is_store_raw_alignment=self.is_store_raw_alignment,
+                    is_store_raw_mutation_tree=self.is_store_raw_mutation_tree,
+                    is_store_raw_true_tree=self.is_store_raw_true_tree,
                     raw_data_output_prefix=self.raw_data_output_prefix,
                     raw_data_alignment_format=self.raw_data_alignment_format,
                     raw_data_tree_format=self.raw_data_tree_format,

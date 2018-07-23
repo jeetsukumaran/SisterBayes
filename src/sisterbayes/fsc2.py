@@ -77,7 +77,9 @@ class Fsc2Handler(object):
             is_calculate_joint_population_sfs,
             is_unfolded_site_frequency_spectrum,
             is_infinite_sites_model,
-            is_store_raw_data=False,
+            is_store_raw_alignment=False,
+            is_store_raw_mutation_tree=False,
+            is_store_raw_true_tree=False,
             raw_data_alignment_format="fasta",
             raw_data_tree_format="nexus",
             fsc2_params_adjustment_hack=None,
@@ -96,7 +98,11 @@ class Fsc2Handler(object):
             self.fsc2_sfs_generation_command = "-m"
         self.is_calculate_single_population_sfs = is_calculate_single_population_sfs
         self.is_calculate_joint_population_sfs = is_calculate_joint_population_sfs
-        self.is_store_raw_data = is_store_raw_data
+        self.is_store_raw_alignment=is_store_raw_alignment,
+        self.is_store_raw_mutation_tree=is_store_raw_mutation_tree,
+        self.is_store_raw_true_tree=is_store_raw_true_tree,
+        if self.is_store_raw_alignment or self.is_store_raw_mutation_tree or self.is_store_raw_true_tree:
+            self.is_store_raw_data = True
         self.raw_data_alignment_format = raw_data_alignment_format
         self.raw_data_tree_format = raw_data_tree_format
         self.fsc2_params_adjustment_hack = fsc2_params_adjustment_hack
@@ -394,9 +400,12 @@ class Fsc2Handler(object):
             path_stem = "{}.{}.{}".format(output_prefix, lineage_pair.label, locus_definition.locus_label)
         else:
             path_stem = "{}.{}".format(output_prefix, os.path.splitext(os.path.basename(locus_definition.alignment_filepath))[0])
-        self._store_dna_results(path_stem)
-        self._store_true_tree_results(path_stem)
-        self._store_mut_tree_results(path_stem, locus_definition)
+        if self.is_store_raw_alignment:
+            self._store_dna_results(path_stem)
+        if self.is_store_raw_true_tree:
+            self._store_true_tree_results(path_stem)
+        if self.is_store_raw_mutation_tree:
+            self._store_mut_tree_results(path_stem, locus_definition)
 
     def _post_execution_cleanup(self):
         pass

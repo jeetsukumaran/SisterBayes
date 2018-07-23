@@ -91,6 +91,18 @@ def main():
             action="store_true",
             default=False,
             help="Output raw data (alignments and trees).")
+    output_options.add_argument("--raw-data-alignment",
+            action="store_true",
+            default=False,
+            help="Output raw alignment.")
+    output_options.add_argument("--raw-data-mutation-tree",
+            action="store_true",
+            default=False,
+            help="Output raw mutation tree.")
+    output_options.add_argument("--raw-data-true-tree",
+            action="store_true",
+            default=False,
+            help="Output raw true tree.")
     output_options.add_argument("--raw-data-alignment-format",
             default="fasta",
             choices=["fasta", "phylip", "nexus"],
@@ -193,6 +205,19 @@ def main():
     config_d["field_delimiter"] = args.field_delimiter
     config_d["is_include_model_id_field"] = args.include_model_id_field
     config_d["is_normalize_by_site_counts"] = args.normalize_by_site_counts
+    is_store_raw_alignment = False
+    is_store_raw_mutation_tree = False
+    is_store_raw_true_tree = False
+    if args.raw_data:
+        is_store_raw_alignment = True
+        is_store_raw_mutation_tree = True
+        is_store_raw_true_tree = True
+    if args.raw_data_alignment:
+        is_store_raw_alignment = True
+    if args.raw_data_mutation_tree:
+        is_store_raw_mutation_tree = True
+    if args.raw_data_true_tree:
+        is_store_raw_true_tree = True
     with utility.TemporaryDirectory(
             prefix="sisterbayes-",
             parent_dir=args.working_directory_parent,
@@ -203,7 +228,9 @@ def main():
                 num_processes=args.num_processes,
                 is_verbose_setup=True,
                 package_id=package_id,
-                is_store_raw_data=args.raw_data,
+                is_store_raw_alignment=is_store_raw_alignment,
+                is_store_raw_mutation_tree=is_store_raw_mutation_tree,
+                is_store_raw_true_tree=is_store_raw_true_tree,
                 raw_data_output_prefix=config_d["output_prefix"],
                 raw_data_alignment_format=args.raw_data_alignment_format,
                 raw_data_tree_format=args.raw_data_tree_format,
