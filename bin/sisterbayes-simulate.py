@@ -63,11 +63,18 @@ def main():
             help="Concatenate statistics for all loci into one effective locus.",
             )
     output_options.add_argument(
+            "--no-normalize-by-concatenated-loci-count",
+            dest="is_normalize_by_concatenated_num_loci",
+            action="store_false",
+            default=True,
+            help="If concatenating loci, do NOT normalize frequency spectrum values by number of loci.",
+            )
+    output_options.add_argument(
             "--no-normalize-by-site-counts",
             dest="normalize_by_site_counts",
             action="store_false",
             default=True,
-            help="Do *not* normalize frequency spectrum by number of sites in each locus."
+            help="Do *not* normalize frequency spectrum values by number of sites in each locus."
             )
     output_options.add_argument("-l", "--labels",
             action="append",
@@ -211,6 +218,7 @@ def main():
     config_d["field_delimiter"] = args.field_delimiter
     config_d["is_include_model_id_field"] = args.include_model_id_field
     config_d["is_concatenate_loci"] = args.concatenate_loci
+    config_d["is_normalize_by_concatenated_num_loci"] = args.is_normalize_by_concatenated_num_loci
     config_d["is_normalize_by_site_counts"] = args.normalize_by_site_counts
     is_store_raw_alignment = False
     is_store_raw_mutation_tree = False

@@ -66,6 +66,7 @@ class SimulationWorker(multiprocessing.Process):
             is_unfolded_site_frequency_spectrum,
             is_infinite_sites_model,
             is_concatenate_loci,
+            is_normalize_by_concatenated_num_loci,
             is_normalize_by_site_counts,
             stat_label_prefix,
             is_include_model_id_field,
@@ -97,6 +98,7 @@ class SimulationWorker(multiprocessing.Process):
         self.is_store_raw_alignment = is_store_raw_alignment
         # self.is_store_concatenated_alignment = True # TODO
         self.is_concatenate_loci = is_concatenate_loci
+        self.is_normalize_by_concatenated_num_loci = is_normalize_by_concatenated_num_loci
         self.is_store_raw_mutation_tree = is_store_raw_mutation_tree
         self.is_store_raw_true_tree = is_store_raw_true_tree
         self.raw_data_output_prefix = raw_data_output_prefix
@@ -189,6 +191,7 @@ class SimulationWorker(multiprocessing.Process):
         results_d.update(params)
         for lineage_pair_idx, lineage_pair in enumerate(self.model.lineage_pairs):
             concatenated_locus_label = model.compose_concatenated_locus_label(lineage_pair)
+            fields_to_average = set()
             for locus_definition_idx, locus_definition in enumerate(lineage_pair.locus_definitions):
                 if self.is_concatenate_loci:
                     field_name_prefix="{}.{}.{}".format(
@@ -215,10 +218,14 @@ class SimulationWorker(multiprocessing.Process):
                         )
                 if self.is_concatenate_loci:
                     for key in locus_results_store:
+                        fields_to_average.add(key)
                         try:
                             results_d[key] += locus_results_store[key]
                         except KeyError:
                             results_d[key] = locus_results_store[key]
+            if self.is_concatenate_loci and self.is_normalize_by_concatenated_num_loci:
+                for key in fields_to_average:
+                    results_d[key] = results_d[key] / float(len(lineage_pair.locus_definitions))
         if self.is_include_model_id_field:
             results_d["model.id"] = results_d["param.divTimeModel"]
         return results_d
@@ -378,6 +385,7 @@ class SisterBayesSimulator(object):
         self.is_calculate_joint_population_sfs = config_d.pop("is_calculate_joint_population_sfs", True)
         self.is_infinite_sites_model = config_d.pop("is_infinite_sites_model", False)
         self.is_concatenate_loci = config_d.pop("is_concatenate_loci", False)
+        self.is_normalize_by_concatenated_num_loci = config_d.pop("is_normalize_by_concatenated_num_loci", True)
         self.is_normalize_by_site_counts = config_d.pop("is_normalize_by_site_counts", False)
         if not self.is_calculate_single_population_sfs and not self.is_calculate_joint_population_sfs:
             raise ValueError("Neither single-population nor joint site frequency spectrum will be calculated!")
@@ -452,6 +460,7 @@ class SisterBayesSimulator(object):
                     is_unfolded_site_frequency_spectrum=self.is_unfolded_site_frequency_spectrum,
                     is_infinite_sites_model=self.is_infinite_sites_model,
                     is_concatenate_loci=self.is_concatenate_loci,
+                    is_normalize_by_concatenated_num_loci=self.is_normalize_by_concatenated_num_loci,
                     is_normalize_by_site_counts=self.is_normalize_by_site_counts,
                     stat_label_prefix=self.stat_label_prefix,
                     is_include_model_id_field=self.is_include_model_id_field,
