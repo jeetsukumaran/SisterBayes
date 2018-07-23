@@ -65,6 +65,7 @@ class SimulationWorker(multiprocessing.Process):
             is_calculate_joint_population_sfs,
             is_unfolded_site_frequency_spectrum,
             is_infinite_sites_model,
+            is_concatenate_loci,
             is_normalize_by_site_counts,
             stat_label_prefix,
             is_include_model_id_field,
@@ -94,6 +95,8 @@ class SimulationWorker(multiprocessing.Process):
         self.num_tasks_received = 0
         self.num_tasks_completed = 0
         self.is_store_raw_alignment = is_store_raw_alignment
+        # self.is_store_concatenated_alignment = True # TODO
+        self.is_concatenate_loci = is_concatenate_loci
         self.is_store_raw_mutation_tree = is_store_raw_mutation_tree
         self.is_store_raw_true_tree = is_store_raw_true_tree
         self.raw_data_output_prefix = raw_data_output_prefix
@@ -185,20 +188,37 @@ class SimulationWorker(multiprocessing.Process):
         params, fsc2_run_configurations = self.model.sample_parameter_values_from_prior(rng=self.rng)
         results_d.update(params)
         for lineage_pair_idx, lineage_pair in enumerate(self.model.lineage_pairs):
+            concatenated_locus_label = model.compose_concatenated_locus_label(lineage_pair)
             for locus_definition_idx, locus_definition in enumerate(lineage_pair.locus_definitions):
+                if self.is_concatenate_loci:
+                    field_name_prefix="{}.{}.{}".format(
+                            self.stat_label_prefix,
+                            lineage_pair.label,
+                            concatenated_locus_label,
+                            )
+                    locus_results_store = collections.OrderedDict()
+                else:
+                    field_name_prefix="{}.{}.{}".format(
+                            self.stat_label_prefix,
+                            lineage_pair.label,
+                            locus_definition.locus_label)
+                    locus_results_store = results_d
                 self.fsc2_handler.run(
-                        field_name_prefix="{}.{}.{}".format(
-                                self.stat_label_prefix,
-                                lineage_pair.label,
-                                locus_definition.locus_label),
+                        field_name_prefix=field_name_prefix,
                         fsc2_config_d=fsc2_run_configurations[locus_definition],
                         random_seed=self.rng.randint(1, 1E6),
-                        results_d=results_d,
+                        results_d=locus_results_store,
                         is_normalize_by_site_counts=self.is_normalize_by_site_counts,
                         raw_data_output_prefix="{}.{:04d}".format(self.raw_data_output_prefix, rep_idx+1),
                         lineage_pair=lineage_pair, # only needed for normalization or raw data output path composition
                         locus_definition=locus_definition, # only needed for normalization or raw data output path composition
                         )
+                if self.is_concatenate_loci:
+                    for key in locus_results_store:
+                        try:
+                            results_d[key] += locus_results_store[key]
+                        except KeyError:
+                            results_d[key] = locus_results_store[key]
         if self.is_include_model_id_field:
             results_d["model.id"] = results_d["param.divTimeModel"]
         return results_d
@@ -357,6 +377,7 @@ class SisterBayesSimulator(object):
         self.is_calculate_single_population_sfs = config_d.pop("is_calculate_single_population_sfs", False)
         self.is_calculate_joint_population_sfs = config_d.pop("is_calculate_joint_population_sfs", True)
         self.is_infinite_sites_model = config_d.pop("is_infinite_sites_model", False)
+        self.is_concatenate_loci = config_d.pop("is_concatenate_loci", False)
         self.is_normalize_by_site_counts = config_d.pop("is_normalize_by_site_counts", False)
         if not self.is_calculate_single_population_sfs and not self.is_calculate_joint_population_sfs:
             raise ValueError("Neither single-population nor joint site frequency spectrum will be calculated!")
@@ -430,6 +451,7 @@ class SisterBayesSimulator(object):
                     is_calculate_joint_population_sfs=self.is_calculate_joint_population_sfs,
                     is_unfolded_site_frequency_spectrum=self.is_unfolded_site_frequency_spectrum,
                     is_infinite_sites_model=self.is_infinite_sites_model,
+                    is_concatenate_loci=self.is_concatenate_loci,
                     is_normalize_by_site_counts=self.is_normalize_by_site_counts,
                     stat_label_prefix=self.stat_label_prefix,
                     is_include_model_id_field=self.is_include_model_id_field,

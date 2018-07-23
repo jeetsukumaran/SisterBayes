@@ -113,7 +113,7 @@ class SisterBayesSummaryStatsCalculator(object):
                 if self.concatenated_locus_label:
                     concatenated_locus_label = self.concatenated_locus_label
                 else:
-                    concatenated_locus_label = "concat{}".format(len(lineage_pair.locus_definitions)),
+                    concatenated_locus_label = model.compose_concatenated_locus_label(lineage_pair)
                 field_name_prefix="{}.{}.{}.joint.sfs".format(
                         self.stat_label_prefix,
                         lineage_pair.label,

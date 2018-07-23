@@ -103,6 +103,8 @@ class Fsc2Handler(object):
         self.is_store_raw_true_tree = is_store_raw_true_tree
         if self.is_store_raw_alignment or self.is_store_raw_mutation_tree or self.is_store_raw_true_tree:
             self.is_store_raw_data = True
+        else:
+            self.is_store_raw_data = False
         self.raw_data_alignment_format = raw_data_alignment_format
         self.raw_data_tree_format = raw_data_tree_format
         self.fsc2_params_adjustment_hack = fsc2_params_adjustment_hack

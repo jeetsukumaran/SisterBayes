@@ -57,6 +57,12 @@ def main():
             " spectrum in addition to the joint."
             )
     output_options.add_argument(
+            "--concatenate-loci",
+            action="store_true",
+            default=False,
+            help="Concatenate statistics for all loci into one effective locus.",
+            )
+    output_options.add_argument(
             "--no-normalize-by-site-counts",
             dest="normalize_by_site_counts",
             action="store_false",
