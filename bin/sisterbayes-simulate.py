@@ -58,7 +58,7 @@ def main():
             )
     output_options.add_argument(
             "--no-normalize-by-site-counts",
-            dest="normalize-by-site_counts",
+            dest="normalize_by_site_counts",
             action="store_false",
             default=True,
             help="Do *not* normalize frequency spectrum by number of sites in each locus."
