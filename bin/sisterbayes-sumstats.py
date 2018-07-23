@@ -37,10 +37,11 @@ def main():
             " spectrum in addition to the joint."
             )
     processing_options.add_argument(
-            "--normalize-by-site-counts",
-            action="store_true",
-            default=False,
-            help="Normalize frequency spectrum by number of sites in each locus."
+            "--no-normalize-by-site-counts",
+            dest="normalize-by-site_counts",
+            action="store_false",
+            default=True,
+            help="Do *not* normalize frequency spectrum by number of sites in each locus."
             )
     processing_options.add_argument(
             "--concatenate-loci",
