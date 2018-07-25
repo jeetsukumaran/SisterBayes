@@ -36,7 +36,8 @@ from sisterbayes import utility
 from sisterbayes import fsc2
 
 def compose_concatenated_locus_label(lineage_pair):
-    concatenated_locus_label = "concat{}".format(len(lineage_pair.locus_definitions))
+    # concatenated_locus_label = "concat{}".format(len(lineage_pair.locus_definitions))
+    concatenated_locus_label = "concat"
     return concatenated_locus_label
 
 def weighted_choice(seq, weights, rng):
